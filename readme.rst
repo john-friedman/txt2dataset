@@ -3,6 +3,16 @@ Dataset Builder
 
 Convert unstructured text into structured datasets.
 
+
+Installation
+------------
+.. code-block:: bash
+
+    pip install txt2dataset
+
+Quickstart
+----------
+
 .. code-block:: python
 
     from datamule.dataset_builder.dataset_builder import DatasetBuilder
