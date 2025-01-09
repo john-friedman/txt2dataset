@@ -25,7 +25,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install sphinx sphinx_rtd_theme myst-parser
           # Add any additional dependencies your docs need
-          # pip install -r datamule/docs/requirements.txt
+          # pip install -r txt2dataset/docs/requirements.txt
 
       - name: Clean and Build Documentation
         run: |
@@ -44,13 +44,13 @@ jobs:
       - name: Check Build Directory
         run: |
           pwd
-          ls -la datamule/docs/build/html || true
+          ls -la txt2dataset/docs/build/html || true
           
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./datamule/docs/build/html
+          publish_dir: ./txt2dataset/docs/build/html
           force_orphan: true  # This ensures a fresh history
           enable_jekyll: false
           user_name: 'github-actions[bot]'
