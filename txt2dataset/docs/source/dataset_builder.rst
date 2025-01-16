@@ -1,130 +1,134 @@
-
 Dataset Builder
-==============
+===============
 
-Transforms unstructured text data into structured datasets using Gemini API. You can get a free API Key from `Google AI Studio <https://aistudio.google.com/app/apikey>`_ with a 15 rpm limit. For higher rate limits, you can then setup the Google $300 Free Credit Trial for 90 days.
+A tool for building, standardizing and validating datasets using language models.
 
-Requirements
------------
+Quickstart
+----------
 
-Input CSV must contain ``accession_number`` and ``text`` columns.
+Initialization
+~~~~~~~~~~~~~~
 
-Methods
--------
-
-set_api_key(api_key)
-    Sets Google Gemini API key for authentication.
-
-set_paths(input_path, output_path, failed_path)
-    Sets input CSV path, output path, and failed records log path.
-
-set_base_prompt(prompt)
-    Sets prompt template for Gemini API.
-
-set_response_schema(schema)
-    Sets expected JSON schema for validation.
-
-set_model(model_name)
-    Sets Gemini model (default: 'gemini-1.5-flash-8b').
-
-set_rpm(rpm)
-    Sets API rate limit (default: 1500).
-
-set_save_frequency(frequency)
-    Sets save interval in records (default: 100).
-
-build()
-    Processes input CSV and generates dataset.
-
-Usage
------
+First, import and initialize the DatasetBuilder class:
 
 .. code-block:: python
 
     from txt2dataset import DatasetBuilder
-    import os
 
-    builder = DatasetBuilder()
+    builder = DatasetBuilder(input_path, output_path)
 
-    # Set API key
-    builder.set_api_key(os.environ["GOOGLE_API_KEY"])
+    # Set your API key
+    builder.set_api_key(api_key)
 
-    # Set required configurations
-    builder.set_paths(
-        input_path="data/item502.csv",
-        output_path="data/bod.csv",
-        failed_path="data/failed_accessions.txt"
-    )
+Set the base prompt that defines what the model should extract:
 
-    builder.set_base_prompt("""Extract Director or Principal Officer info to JSON format. 
-    Provide the following information:
-    - start_date (YYYYMMDD)
-    - end_date (YYYYMMDD)
-    - name (First Middle Last)
-    - title
-    Return null if info unavailable.""")
+.. code-block:: python
 
-    builder.set_response_schema({
+    base_prompt = """Extract officer changes and movements to JSON format.
+        Track when officers join, leave, or change roles.
+        Provide the following information:
+        - date (YYYYMMDD)
+        - name (First Middle Last)
+        - title
+        - action (one of: ["HIRED", "RESIGNED", "TERMINATED", "PROMOTED", "TITLE_CHANGE"])
+        Return an empty dict if info unavailable."""
+
+Define the expected response schema:
+
+.. code-block:: python
+
+    response_schema = {
         "type": "ARRAY",
         "items": {
             "type": "OBJECT",
             "properties": {
-                "start_date": {"type": "STRING", "description": "Start date in YYYYMMDD format"},
-                "end_date": {"type": "STRING", "description": "End date in YYYYMMDD format"},
+                "date": {"type": "STRING", "description": "Date of action in YYYYMMDD format"},
                 "name": {"type": "STRING", "description": "Full name (First Middle Last)"},
-                "title": {"type": "STRING", "description": "Official title/position"}
+                "title": {"type": "STRING", "description": "Official title/position"},
+                "action": {
+                    "type": "STRING", 
+                    "enum": ["HIRED", "RESIGNED", "TERMINATED", "PROMOTED", "TITLE_CHANGE"],
+                    "description": "Type of personnel action"
+                }
             },
-            "required": ["start_date", "end_date", "name", "title"]
+            "required": ["date", "name", "title", "action"]
         }
-    })
+    }
 
-    # Optional configurations
-    builder.set_rpm(1500)
-    builder.set_save_frequency(100)
-    builder.set_model('gemini-1.5-flash-8b')
+Optional Configurations
+~~~~~~~~~~~~~~~~~~~~~~~
 
-    # Build the dataset
-    builder.build()
-
-API Key Setup
-------------
-
-1. Get API Key:
-   Visit `Google AI Studio <https://aistudio.google.com/app/apikey>`_ to generate your API key.
-
-2. Set API Key as Environment Variable:
-
-   Windows (Command Prompt):
-   ::
-
-       setx GOOGLE_API_KEY your-api-key
-
-   Windows (PowerShell):
-   ::
-
-       [System.Environment]::SetEnvironmentVariable('GOOGLE_API_KEY', 'your-api-key', 'User')
-
-   macOS/Linux (bash):
-   ::
-
-       echo 'export GOOGLE_API_KEY="your-api-key"' >> ~/.bash_profile
-       source ~/.bash_profile
-
-   macOS (zsh):
-   ::
-
-       echo 'export GOOGLE_API_KEY="your-api-key"' >> ~/.zshrc
-       source ~/.zshrc
-
-   Note: Replace 'your-api-key' with your actual API key.
-
-
-Alternative API Key Setup
------------------------
-
-You can also set the API key directly in your Python code, though this is not recommended for production:
+You can customize various settings:
 
 .. code-block:: python
 
-    api_key = "your-api-key"  # Replace with your actual API key
-    builder.set_api_key(api_key)
+    builder.set_rpm(1500)  # Set requests per minute
+    builder.set_save_frequency(100)  # Save progress every 100 items
+    builder.set_model('gemini-1.5-flash-8b')  # Set the model to use
+
+Building the Dataset
+--------------------
+
+Build your dataset using the configured settings:
+
+.. code-block:: python
+
+    builder.build(
+        base_prompt=base_prompt,
+        response_schema=response_schema,
+        text_column='text',
+        index_column='accession_number',
+        input_path="data/msft_8k_item_5_02.csv",
+        output_path='data/msft_officers.csv'
+    )
+
+Standardizing the Dataset
+-------------------------
+
+Standardize the output dataset:
+
+.. code-block:: python
+
+    builder.standardize(
+        response_schema=response_schema,
+        input_path='data/msft_officers.csv',
+        output_path='data/msft_officers_standardized.csv',
+        columns=['name']
+    )
+
+Validating the Dataset
+----------------------
+
+Validate the generated dataset:
+
+.. code-block:: python
+
+    results = builder.validate(
+        input_path='data/msft_8k_item_5_02.csv',
+        output_path='data/msft_officers_standardized.csv',
+        text_column='text',
+        index_column='accession_number',
+        base_prompt=base_prompt,
+        response_schema=response_schema,
+        n=5,
+        quiet=False
+    )
+
+Example Validation Output
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The validation returns results in this format:
+
+.. code-block:: python
+
+    [{
+        "input_text": "Item 5.02 Departure of Directors... Kevin Turner provided notice he was resigning his position as Chief Operating Officer of Microsoft.",
+        "process_output": [{
+            "date": 20160630,
+            "name": "Kevin Turner",
+            "title": "Chief Operating Officer",
+            "action": "RESIGNED"
+        }],
+        "is_valid": true,
+        "reason": "The generated JSON is valid..."
+    },...]

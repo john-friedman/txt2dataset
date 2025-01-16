@@ -1,6 +1,6 @@
 # txt2dataset
 
-Convert unstructured text to structured datasets using structured output for Large Language Models. Currently supports Gemini.
+A package for building, standardizing and validating datasets using language models. Currently supports Gemini.
 
 ## Example
 ```
