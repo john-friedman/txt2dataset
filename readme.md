@@ -1,4 +1,4 @@
-# txt2dataset (this readme is not accurate yet, please do not use)
+# txt2dataset
 
 Convert unstructured text to structured datasets using structured output for Large Language Models. Currently supports Gemini.
 
@@ -22,7 +22,7 @@ pip install txt2dataset
 
 ## Quickstart
 
-
+### Initialization
 ```
 from txt2dataset import DatasetBuilder
 
@@ -32,40 +32,80 @@ builder = DatasetBuilder(input_path,output_path)
 builder.set_api_key(api_key)
 
 # set base prompt, e.g. what the model looks for
-builder.set_base_prompt("""Extract Director or Principal Officer info to JSON format.
+base_prompt = """Extract officer changes and movements to JSON format.
+    Track when officers join, leave, or change roles.
     Provide the following information:
-    - start_date (YYYYMMDD)
-    - end_date (YYYYMMDD)
+    - date (YYYYMMDD)
     - name (First Middle Last)
     - title
-    Return null if info unavailable.""")
+    - action (one of: ["HIRED", "RESIGNED", "TERMINATED", "PROMOTED", "TITLE_CHANGE"])
+    Return an empty dict if info unavailable."""
 
 # set what the model should return
-builder.set_response_schema({
+response_schema = {
     "type": "ARRAY",
     "items": {
         "type": "OBJECT",
         "properties": {
-            "start_date": {"type": "STRING", "description": "Start date in YYYYMMDD format"},
-            "end_date": {"type": "STRING", "description": "End date in YYYYMMDD format"},
+            "date": {"type": "STRING", "description": "Date of action in YYYYMMDD format"},
             "name": {"type": "STRING", "description": "Full name (First Middle Last)"},
-            "title": {"type": "STRING", "description": "Official title/position"}
+            "title": {"type": "STRING", "description": "Official title/position"},
+            "action": {
+                "type": "STRING", 
+                "enum": ["HIRED", "RESIGNED", "TERMINATED", "PROMOTED", "TITLE_CHANGE"],
+                "description": "Type of personnel action"
+            }
         },
-        "required": ["start_date", "end_date", "name", "title"]
+        "required": ["date", "name", "title", "action"]
     }
-})
+}
 
 # Optional configurations
 builder.set_rpm(1500)
 builder.set_save_frequency(100)
 builder.set_model('gemini-1.5-flash-8b')
-
-builder.build(text_column,index_column) # index_column is the unique identifier, if none is specified, will use row index
-
-builder.standardize(columns) # columns are optional, will try to standardize based on response schema
-
-builder.validate(size) # will load rows, check against original text and response schema, and determine whether dataset building makes sense or not, if not will return structured output with unique error message.
-
 ```
 
+### Build the dataset
+```
+builder.build(base_prompt=base_prompt,
+               response_schema=response_schema,
+               text_column='text',
+               index_column='accession_number',
+               input_path="data/msft_8k_item_5_02.csv",
+               output_path='data/msft_officers.csv')
+```
+
+### Standardize the dataset
+```
+builder.standardize(response_schema=response_schema,input_path='data/msft_officers.csv', output_path='data/msft_officers_standardized.csv',columns=['name'])
+```
+
+### Validate the dataset
+```
+results = builder.validate(input_path='data/msft_8k_item_5_02.csv',
+                 output_path= 'data/msft_officers_standardized.csv', 
+                 text_column='text',
+                 index_column='accession_number', 
+                 base_prompt=base_prompt,
+                 response_schema=response_schema,
+                 n=5,
+                 quiet=False)
+```
+
+#### Example Validation Output
+```
+[{
+    "input_text": "Item 5.02 Departure of Directors... Kevin Turner provided notice he was resigning his position as Chief Operating Officer of Microsoft.",
+    "process_output": [{
+        "date": 20160630,
+        "name": "Kevin Turner",
+        "title": "Chief Operating Officer",
+        "action": "RESIGNED"
+    }],
+    "is_valid": true,
+    "reason": "The generated JSON is valid..."
+},...
+]
+```
 

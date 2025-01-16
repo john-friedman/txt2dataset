@@ -1,38 +1,50 @@
 action,date,name,title,accession_number
-HIRED,20050509,Christopher P. Liddell,"Senior Vice President, Chief Financial Officer",0001193125-05-084018
-HIRED,20060501,Frank H Brod,"Corporate Vice President, Finance and Administration and Chief Accounting Officer",0001193125-06-079650
-RESIGNED,20091124,Christopher P. Liddell,Chief Financial Officer,0001193125-09-247599
-RESIGNED,20120918,Raymond V. Gilmartin,Director,0001193125-12-395523
-PROMOTED,20060130,J. Scott Di Valerio,"Corporate Vice President, OEM Sales and Marketing",0001193125-06-019761
-RESIGNED,20060130,J. Scott Di Valerio,Chief Accounting Officer,0001193125-06-019761
-TITLE_CHANGE,20060130,Christopher Liddell,Chief Accounting Officer,0001193125-06-019761
-RESIGNED,20100910,Stephen Elop,"President, Microsoft Business Division",0001193125-10-209027
-PROMOTED,20100910,Stephen Elop,"Chief Executive Officer, Nokia Corporation",0001193125-10-209027
-HIRED,20130508,Amy Hood,Chief Financial Officer,0001193125-13-216952
-RESIGNED,20140317,Stephen J. Luczo,"Member, Microsoft Board of Directors",0001193125-14-108251
-RESIGNED,20130710,Kurt DelBene,"President, Microsoft Office Division",0001193125-13-288230
-RESIGNED,20080723,Kevin Johnson,"President, Microsoft Platforms and Services Division",0001193125-08-157953
-HIRED,20080723,Kevin Johnson,Chief Executive Officer,0001193125-08-157953
-RESIGNED,20091119,Christopher P. Liddell,Chief Financial Officer,0001193125-09-241522
-HIRED,20091124,Peter Klein,Chief Financial Officer,0001193125-09-241522
-RESIGNED,20160630,Kevin Turner,Chief Operating Officer,0001193125-16-643151
-RESIGNED,20140819,Steven A. Ballmer,"Member, Microsoft Board of Directors",0001193125-14-314623
-RESIGNED,20090911,"James I. Cash, Jr.",Director,0001193125-09-190661
-HIRED,20080110,Stephen Elop,"President, Microsoft Business Division",0001193125-08-005141
-RESIGNED,20080110,Jeffrey S. Raikes,"President, Microsoft Business Division",0001193125-08-005141
-RESIGNED,20200701,Margaret L. Johnson,"Executive Vice President, Business Development",0001193125-20-188481
-PROMOTED,20150911,Bradford L. Smith,President and Chief Legal Officer,0001193125-15-318450
-TITLE_CHANGE,20020000,Bradford L. Smith,General Counsel,0001193125-15-318450
-HIRED,19930000,Bradford L. Smith,Unknown,0001193125-15-318450
-TITLE_CHANGE,20210701,Jean-Phillipe Courtois,"Executive Vice President and President, National Transformation Partnerships",0001193125-21-167940
-RESIGNED,20210630,Jean-Phillipe Courtois,Executive Officer,0001193125-21-167940
-RESIGNED,20141001,Dina Dublon,Director,0001193125-14-343628
-RESIGNED,20141001,David F Marquardt,Director,0001193125-14-343628
-HIRED,20141001,Teri List-Stoll,Director,0001193125-14-343628
-HIRED,20141001,Charles W Scharf,Director,0001193125-14-343628
-HIRED,20170314,Reid Hoffman,"Member, Microsoft Board of Directors",0001193125-17-082168
-RESIGNED,20200731,Frank H. Brod,"Corporate Vice President, Finance and Administration and Chief Accounting Officer",0001193125-20-184744
-HIRED,20200731,Alice L. Jolla,Corporate Vice President and Chief Accounting Officer,0001193125-20-184744
-RESIGNED,20170405,Mason Morfit,Director,0001193125-17-288464
-HIRED,20170919,Hugh Johnston,Director,0001193125-17-288464
-RESIGNED,20200313,Bill Gates,"Co-founder and Member, Microsoft Board of Directors",0001193125-20-073072
+HIRED,20050509,"Liddell, Christopher P.","Senior Vice President, Chief Financial Officer",0001193125-05-084018
+HIRED,20060501,"Brod, Frank H.","Corporate Vice President, Finance and Administration and Chief Accounting Officer",0001193125-06-079650
+RESIGNED,20100525,"Bach, Robbie",President of the Entertainment and Devices Division,0001193125-10-128133
+HIRED,20080110,"Elop, Stephen",President of the Microsoft Business Division,0001193125-08-005141
+RESIGNED,20080110,"Raikes, Jeffrey S.",President of the Microsoft Business Division,0001193125-08-005141
+RESIGNED,20120918,"Gilmartin, Raymond V.",Director,0001193125-12-395523
+RESIGNED,20121128,"Hastings, Reed",Director,0001193125-12-418686
+PROMOTED,20060130,"Di Valerio, J. Scott","Corporate Vice President, OEM Sales and Marketing",0001193125-06-019761
+RESIGNED,20060130,"Di Valerio, J. Scott",Chief Accounting Officer,0001193125-06-019761
+TITLE_CHANGE,20060130,"Liddell, Christopher",Chief Accounting Officer,0001193125-06-019761
+RESIGNED,20100910,"Elop, Stephen",President of the Microsoft Business Division,0001193125-10-209027
+TITLE_CHANGE,20100910,"Elop, Stephen",Chief Executive Officer of Nokia Corporation,0001193125-10-209027
+RESIGNED,20080723,"Johnson, Kevin",President of the Microsoft Platforms and Services Division,0001193125-08-157953
+RESIGNED,20130821,"Ballmer, Steven A.",Chief Executive Officer,0001193125-13-345446
+PROMOTED,20050523,"Di Valerio, J. Scott","Corporate Vice President, Finance and Administration and Chief Accounting Officer",0001193125-05-113172
+TITLE_CHANGE,20030401,"Di Valerio, J. Scott",Corporate Vice President and Corporate Controller,0001193125-05-113172
+TITLE_CHANGE,20010101,"Di Valerio, J. Scott",Vice President of Corporate Controllership,0001193125-05-113172
+TITLE_CHANGE,20000501,"Di Valerio, J. Scott",Chief Financial Officer,0001193125-05-113172
+HIRED,20090309,"Klawe, Maria",Microsoft Board of Directors,0001193125-09-048817
+RESIGNED,20140317,"Luczo, Stephen J.",Member of the Microsoft Board of Directors,0001193125-14-108251
+RESIGNED,20091119,"Liddell, Christopher P.",Chief Financial Officer,0001193125-09-241522
+HIRED,20091124,"Klein, Peter",Chief Financial Officer,0001193125-09-241522
+RESIGNED,20140819,"Ballmer, Steven A.",Microsoft Board of Directors,0001193125-14-314623
+HIRED,20140730,"Stanton, John",Microsoft Board of Directors,0001193125-14-288136
+RESIGNED,20160630,"Turner, Kevin",Chief Operating Officer,0001193125-16-643151
+RESIGNED,20130710,"DelBene, Kurt",President of the Microsoft Office Division,0001193125-13-288230
+TITLE_CHANGE,20051107,"Di Valerio, J. Scott","Corporate Vice President, OEM Sales and Marketing",0001193125-05-223327
+RESIGNED,20191204,"Noski, Charles H",Director,0001193125-19-249565
+RESIGNED,20191204,"Panke, Helmut",Director,0001193125-19-249565
+RESIGNED,20200701,"Johnson, Margaret L.","Executive Vice President, Business Development",0001193125-20-188481
+HIRED,20130508,"Hood, Amy",Chief Financial Officer,0001193125-13-216952
+PROMOTED,20150911,"Smith, Bradford L.",President and Chief Legal Officer,0001193125-15-318450
+TITLE_CHANGE,20020000,"Smith, Bradford L.",General Counsel,0001193125-15-318450
+HIRED,19930000,"Smith, Bradford L.","General Counsel & Executive Vice President, Legal and Corporate Affairs",0001193125-15-318450
+TITLE_CHANGE,20210630,"Courtois, Jean-Phillipe","Executive Vice President and President, National Transformation Partnerships",0001193125-21-167940
+RESIGNED,20210630,"Courtois, Jean-Phillipe",Executive Officer,0001193125-21-167940
+PROMOTED,20140204,"Nadella, Satya",Chief Executive Officer,0001193125-14-035080
+RESIGNED,20140204,"Ballmer, Steven A.",Chief Executive Officer,0001193125-14-035080
+RESIGNED,20200313,"Gates, Bill",Co-founder and Member of the Board of Directors of Microsoft,0001193125-20-073072
+RESIGNED,20130418,"Klein, Peter",Chief Financial Officer,0001193125-13-160968
+RESIGNED,20121112,"Sinofsky, Steven",President of the Windows and Windows Live Division,0001193125-12-474208
+RESIGNED,20170404,"Morfit, Mason",Director,0001193125-17-288464
+HIRED,20170919,"Johnston, Hugh",Director,0001193125-17-288464
+RESIGNED,20141001,"Dublon, Dina",Director,0001193125-14-343628
+RESIGNED,20141001,"Marquardt, David F",Director,0001193125-14-343628
+HIRED,20141001,"List-Stoll, Teri",Director,0001193125-14-343628
+HIRED,20141001,"Scharf, Charles W",Director,0001193125-14-343628
+RESIGNED,20200731,"Brod, Frank H.","Corporate Vice President, Finance and Administration and Chief Accounting Officer",0001193125-20-184744
+HIRED,20200731,"Jolla, Alice L",Corporate Vice President and Chief Accounting Officer,0001193125-20-184744

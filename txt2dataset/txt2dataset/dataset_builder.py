@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 import google.generativeai as genai
 from google.generativeai.types import HarmBlockThreshold, HarmCategory
-
+import random
 import time
 import psutil
 from threading import Lock
@@ -345,7 +345,7 @@ class DatasetBuilder:
             result.to_csv(output_path, index=False)
             print(f"Saved standardized data to {output_path}")
 
-    def validate(self, input_path, output_path, text_column, base_prompt, response_schema, n=3, quiet=True):
+    def validate(self, input_path, output_path, text_column, base_prompt, response_schema, index_column, n=3, quiet=True):
         """Validate the quality of processed data by comparing original text to generated output.
         
         Args:
@@ -354,6 +354,7 @@ class DatasetBuilder:
             text_column (str): Name of the column containing original text
             base_prompt (str): Base prompt used in processing
             response_schema (dict): Schema definition for response structure
+            index_column (str): Column to use for matching input to output rows
             n (int, optional): Number of random samples to validate. Defaults to 3.
             quiet (bool, optional): If False, prints validation summary. Defaults to True.
             
@@ -364,28 +365,29 @@ class DatasetBuilder:
         self.validate_config()
         model = genai.GenerativeModel(self.model_name)
         
-        df_input = pd.read_csv(input_path).reset_index()
-        df_output = pd.read_csv(output_path).reset_index()
+        df_input = pd.read_csv(input_path)
+        df_output = pd.read_csv(output_path)
         
         if text_column not in df_input.columns:
             raise ValueError(f"Text column '{text_column}' not found in input CSV")
+        if index_column not in df_input.columns:
+            raise ValueError(f"Index column '{index_column}' not found in input CSV")
             
-        sample_indices = df_input.sample(n=min(n, len(df_input))).index
+        unique_indices = list(set(df_output[index_column]))
+        sample_indices = random.sample(unique_indices, min(n, len(unique_indices)))
         validation_results = []
         
-        # Get schema fields to determine what columns to keep
         schema_fields = list(response_schema["items"]["properties"].keys())
         
         for idx in sample_indices:
             try:
-                original_text = df_input.loc[idx, text_column]
+                original_text = df_input[df_input[index_column] == idx][text_column].iloc[0]
+                processed_rows = df_output[df_output[index_column] == idx][schema_fields].to_dict('records')
                 
-                # Get processed output and filter to only schema-relevant columns
-                processed_rows = df_output[df_output['index'] == idx][schema_fields].to_dict('records')
- 
                 if not processed_rows:
                     validation_results.append({
                         'input_text': original_text,
+                        'process_output': None,
                         'is_valid': False,
                         'reason': 'No processed output found'
                     })
@@ -396,7 +398,7 @@ class DatasetBuilder:
     Original text:
     {original_text}
 
-    Generated output:
+    Generated output (multiple entries may be present):
     {json.dumps(processed_rows, indent=2)}
 
     Schema used:
@@ -406,16 +408,16 @@ class DatasetBuilder:
     {base_prompt}
 
     Determine if the generated output is valid and appropriate. Consider:
-    1. Is the content appropriate given the original text?
-    2. Is the information accurate to the original text?
-    3. Have any important details been missed or misrepresented?
+    1. Does it follow the schema structure?
+    2. Is the content appropriate given the original text?
+    3. Is the information accurate to the original text?
+    4. Have any important details been missed or misrepresented?
 
     Return a JSON with this schema:
     {{
         "is_valid": boolean,
         "reason": "string explaining why valid or invalid"
     }}"""
-                
 
                 validation_config = genai.GenerationConfig(
                     response_mime_type="application/json",
@@ -443,14 +445,15 @@ class DatasetBuilder:
                 validation_result = json.loads(validation_response.text)
                 validation_results.append({
                     'input_text': original_text,
+                    'process_output': processed_rows,
                     'is_valid': validation_result['is_valid'],
                     'reason': validation_result['reason']
                 })
                 
             except Exception as e:
-                print(f"Error validating {idx}: {str(e)}")
                 validation_results.append({
                     'input_text': original_text,
+                     'process_output': processed_rows,
                     'is_valid': False,
                     'reason': str(e)
                 })
