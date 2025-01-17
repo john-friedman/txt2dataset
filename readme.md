@@ -1,7 +1,9 @@
 # txt2dataset
+A package for building, standardizing and validating datasets using language models. Currently supports Gemini. 
 
-A package for building, standardizing and validating datasets using language models. Currently supports Gemini.
-
+* [Documentation](https://john-friedman.github.io/txt2dataset/dataset_builder.html)
+* [Examples](https://github.com/john-friedman/txt2dataset/tree/main/examples)
+* [Get a Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
 ## Example
 ```
 Andrew Baglino, Senior Vice President, Powertrain and Energy Engineering of Tesla, Inc. (“Tesla,”, or the “Company”), resigned from Tesla, effective as of April 14, 2024. Mr. Baglino served in this position since October 2019, prior to which he served in various engineering positions continuously since joining Tesla in March 2006. Tesla is grateful to Mr. Baglino for his leadership and contributions to our significant innovation and growth over the course of his 18-year career. 
