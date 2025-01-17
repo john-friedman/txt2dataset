@@ -1,0 +1,235 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dataset Builder &mdash; txt2dataset  documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=5929fcd5"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="prev" title="Welcome to txt2dataset’s documentation!" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            txt2dataset
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Dataset Builder</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#quickstart">Quickstart</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#initialization">Initialization</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#optional-configurations">Optional Configurations</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#building-the-dataset">Building the Dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#standardizing-the-dataset">Standardizing the Dataset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="#validating-the-dataset">Validating the Dataset</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#example-validation-output">Example Validation Output</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">txt2dataset</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Dataset Builder</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/dataset_builder.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="dataset-builder">
+<h1>Dataset Builder<a class="headerlink" href="#dataset-builder" title="Link to this heading"></a></h1>
+<p>A tool for building, standardizing and validating datasets using language models.</p>
+<section id="quickstart">
+<h2>Quickstart<a class="headerlink" href="#quickstart" title="Link to this heading"></a></h2>
+<section id="initialization">
+<h3>Initialization<a class="headerlink" href="#initialization" title="Link to this heading"></a></h3>
+<p>First, import and initialize the DatasetBuilder class:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">txt2dataset</span><span class="w"> </span><span class="kn">import</span> <span class="n">DatasetBuilder</span>
+
+<span class="n">builder</span> <span class="o">=</span> <span class="n">DatasetBuilder</span><span class="p">(</span><span class="n">input_path</span><span class="p">,</span> <span class="n">output_path</span><span class="p">)</span>
+
+<span class="c1"># Set your API key</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">set_api_key</span><span class="p">(</span><span class="n">api_key</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Set the base prompt that defines what the model should extract:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">base_prompt</span> <span class="o">=</span> <span class="s2">&quot;&quot;&quot;Extract officer changes and movements to JSON format.</span>
+<span class="s2">    Track when officers join, leave, or change roles.</span>
+<span class="s2">    Provide the following information:</span>
+<span class="s2">    - date (YYYYMMDD)</span>
+<span class="s2">    - name (First Middle Last)</span>
+<span class="s2">    - title</span>
+<span class="s2">    - action (one of: [&quot;HIRED&quot;, &quot;RESIGNED&quot;, &quot;TERMINATED&quot;, &quot;PROMOTED&quot;, &quot;TITLE_CHANGE&quot;])</span>
+<span class="s2">    Return an empty dict if info unavailable.&quot;&quot;&quot;</span>
+</pre></div>
+</div>
+<p>Define the expected response schema:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">response_schema</span> <span class="o">=</span> <span class="p">{</span>
+    <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;ARRAY&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;items&quot;</span><span class="p">:</span> <span class="p">{</span>
+        <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;OBJECT&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;properties&quot;</span><span class="p">:</span> <span class="p">{</span>
+            <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;STRING&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Date of action in YYYYMMDD format&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;STRING&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Full name (First Middle Last)&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="p">{</span><span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;STRING&quot;</span><span class="p">,</span> <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Official title/position&quot;</span><span class="p">},</span>
+            <span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="p">{</span>
+                <span class="s2">&quot;type&quot;</span><span class="p">:</span> <span class="s2">&quot;STRING&quot;</span><span class="p">,</span>
+                <span class="s2">&quot;enum&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;HIRED&quot;</span><span class="p">,</span> <span class="s2">&quot;RESIGNED&quot;</span><span class="p">,</span> <span class="s2">&quot;TERMINATED&quot;</span><span class="p">,</span> <span class="s2">&quot;PROMOTED&quot;</span><span class="p">,</span> <span class="s2">&quot;TITLE_CHANGE&quot;</span><span class="p">],</span>
+                <span class="s2">&quot;description&quot;</span><span class="p">:</span> <span class="s2">&quot;Type of personnel action&quot;</span>
+            <span class="p">}</span>
+        <span class="p">},</span>
+        <span class="s2">&quot;required&quot;</span><span class="p">:</span> <span class="p">[</span><span class="s2">&quot;date&quot;</span><span class="p">,</span> <span class="s2">&quot;name&quot;</span><span class="p">,</span> <span class="s2">&quot;title&quot;</span><span class="p">,</span> <span class="s2">&quot;action&quot;</span><span class="p">]</span>
+    <span class="p">}</span>
+<span class="p">}</span>
+</pre></div>
+</div>
+</section>
+<section id="optional-configurations">
+<h3>Optional Configurations<a class="headerlink" href="#optional-configurations" title="Link to this heading"></a></h3>
+<p>You can customize various settings:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">builder</span><span class="o">.</span><span class="n">set_rpm</span><span class="p">(</span><span class="mi">1500</span><span class="p">)</span>  <span class="c1"># Set requests per minute</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">set_save_frequency</span><span class="p">(</span><span class="mi">100</span><span class="p">)</span>  <span class="c1"># Save progress every 100 items</span>
+<span class="n">builder</span><span class="o">.</span><span class="n">set_model</span><span class="p">(</span><span class="s1">&#39;gemini-1.5-flash-8b&#39;</span><span class="p">)</span>  <span class="c1"># Set the model to use</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="building-the-dataset">
+<h2>Building the Dataset<a class="headerlink" href="#building-the-dataset" title="Link to this heading"></a></h2>
+<p>Build your dataset using the configured settings:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">builder</span><span class="o">.</span><span class="n">build</span><span class="p">(</span>
+    <span class="n">base_prompt</span><span class="o">=</span><span class="n">base_prompt</span><span class="p">,</span>
+    <span class="n">response_schema</span><span class="o">=</span><span class="n">response_schema</span><span class="p">,</span>
+    <span class="n">text_column</span><span class="o">=</span><span class="s1">&#39;text&#39;</span><span class="p">,</span>
+    <span class="n">index_column</span><span class="o">=</span><span class="s1">&#39;accession_number&#39;</span><span class="p">,</span>
+    <span class="n">input_path</span><span class="o">=</span><span class="s2">&quot;data/msft_8k_item_5_02.csv&quot;</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="o">=</span><span class="s1">&#39;data/msft_officers.csv&#39;</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="standardizing-the-dataset">
+<h2>Standardizing the Dataset<a class="headerlink" href="#standardizing-the-dataset" title="Link to this heading"></a></h2>
+<p>Standardize the output dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">builder</span><span class="o">.</span><span class="n">standardize</span><span class="p">(</span>
+    <span class="n">response_schema</span><span class="o">=</span><span class="n">response_schema</span><span class="p">,</span>
+    <span class="n">input_path</span><span class="o">=</span><span class="s1">&#39;data/msft_officers.csv&#39;</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="o">=</span><span class="s1">&#39;data/msft_officers_standardized.csv&#39;</span><span class="p">,</span>
+    <span class="n">columns</span><span class="o">=</span><span class="p">[</span><span class="s1">&#39;name&#39;</span><span class="p">]</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="validating-the-dataset">
+<h2>Validating the Dataset<a class="headerlink" href="#validating-the-dataset" title="Link to this heading"></a></h2>
+<p>Validate the generated dataset:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">results</span> <span class="o">=</span> <span class="n">builder</span><span class="o">.</span><span class="n">validate</span><span class="p">(</span>
+    <span class="n">input_path</span><span class="o">=</span><span class="s1">&#39;data/msft_8k_item_5_02.csv&#39;</span><span class="p">,</span>
+    <span class="n">output_path</span><span class="o">=</span><span class="s1">&#39;data/msft_officers_standardized.csv&#39;</span><span class="p">,</span>
+    <span class="n">text_column</span><span class="o">=</span><span class="s1">&#39;text&#39;</span><span class="p">,</span>
+    <span class="n">index_column</span><span class="o">=</span><span class="s1">&#39;accession_number&#39;</span><span class="p">,</span>
+    <span class="n">base_prompt</span><span class="o">=</span><span class="n">base_prompt</span><span class="p">,</span>
+    <span class="n">response_schema</span><span class="o">=</span><span class="n">response_schema</span><span class="p">,</span>
+    <span class="n">n</span><span class="o">=</span><span class="mi">5</span><span class="p">,</span>
+    <span class="n">quiet</span><span class="o">=</span><span class="kc">False</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<section id="example-validation-output">
+<h3>Example Validation Output<a class="headerlink" href="#example-validation-output" title="Link to this heading"></a></h3>
+<p>The validation returns results in this format:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="p">[{</span>
+    <span class="s2">&quot;input_text&quot;</span><span class="p">:</span> <span class="s2">&quot;Item 5.02 Departure of Directors... Kevin Turner provided notice he was resigning his position as Chief Operating Officer of Microsoft.&quot;</span><span class="p">,</span>
+    <span class="s2">&quot;process_output&quot;</span><span class="p">:</span> <span class="p">[{</span>
+        <span class="s2">&quot;date&quot;</span><span class="p">:</span> <span class="mi">20160630</span><span class="p">,</span>
+        <span class="s2">&quot;name&quot;</span><span class="p">:</span> <span class="s2">&quot;Kevin Turner&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;title&quot;</span><span class="p">:</span> <span class="s2">&quot;Chief Operating Officer&quot;</span><span class="p">,</span>
+        <span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="s2">&quot;RESIGNED&quot;</span>
+    <span class="p">}],</span>
+    <span class="s2">&quot;is_valid&quot;</span><span class="p">:</span> <span class="n">true</span><span class="p">,</span>
+    <span class="s2">&quot;reason&quot;</span><span class="p">:</span> <span class="s2">&quot;The generated JSON is valid...&quot;</span>
+<span class="p">},</span><span class="o">...</span><span class="p">]</span>
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="Welcome to txt2dataset’s documentation!" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
