@@ -1,113 +1,96 @@
 # txt2dataset
-A package for building, standardizing and validating datasets using language models. Currently supports Gemini. 
+A package for building, standardizing and validating datasets using language models. Supports the [Structured Output](https://github.com/Structured-Output) project. 
 
 * [Documentation](https://john-friedman.github.io/txt2dataset/dataset_builder.html)
-* [Examples](https://github.com/john-friedman/txt2dataset/tree/main/examples)
 * [Get a Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
-## Example
-```
-Andrew Baglino, Senior Vice President, Powertrain and Energy Engineering of Tesla, Inc. (“Tesla,”, or the “Company”), resigned from Tesla, effective as of April 14, 2024. Mr. Baglino served in this position since October 2019, prior to which he served in various engineering positions continuously since joining Tesla in March 2006. Tesla is grateful to Mr. Baglino for his leadership and contributions to our significant innovation and growth over the course of his 18-year career. 
-```
 
---->
-
-```
-name, title, date, action
-Andrew Baglino, Senior Vice President, 4/14/2024, resigns
-```
+## Models Supported
+* Gemini
 
 ## Installation
 
-```
+```bash
 pip install txt2dataset
 ```
 
-## Quickstart
+## Usage
 
-### Initialization
-```
-from txt2dataset import DatasetBuilder
+### Schema
 
-builder = DatasetBuilder(input_path,output_path)
+```python
+from pydantic import BaseModel
+from typing import Optional, List
+from datetime import datetime
 
-# set api key
-builder.set_api_key(api_key)
+class SingleDividend(BaseModel):
+    dividend_per_share: float
+    payment_date: Optional[datetime] = None
+    record_date: Optional[datetime] = None
+    stock_type_specified: Optional[str] = None
 
-# set base prompt, e.g. what the model looks for
-base_prompt = """Extract officer changes and movements to JSON format.
-    Track when officers join, leave, or change roles.
-    Provide the following information:
-    - date (YYYYMMDD)
-    - name (First Middle Last)
-    - title
-    - action (one of: ["HIRED", "RESIGNED", "TERMINATED", "PROMOTED", "TITLE_CHANGE"])
-    Return an empty dict if info unavailable."""
-
-# set what the model should return
-response_schema = {
-    "type": "ARRAY",
-    "items": {
-        "type": "OBJECT",
-        "properties": {
-            "date": {"type": "STRING", "description": "Date of action in YYYYMMDD format"},
-            "name": {"type": "STRING", "description": "Full name (First Middle Last)"},
-            "title": {"type": "STRING", "description": "Official title/position"},
-            "action": {
-                "type": "STRING", 
-                "enum": ["HIRED", "RESIGNED", "TERMINATED", "PROMOTED", "TITLE_CHANGE"],
-                "description": "Type of personnel action"
-            }
-        },
-        "required": ["date", "name", "title", "action"]
-    }
-}
-
-# Optional configurations
-builder.set_rpm(1500)
-builder.set_save_frequency(100)
-builder.set_model('gemini-1.5-flash-8b')
+class DividendExtraction(BaseModel):
+    info_found: bool
+    data: List[SingleDividend] = []
 ```
 
-### Build the dataset
-```
-builder.build(base_prompt=base_prompt,
-               response_schema=response_schema,
-               text_column='text',
-               index_column='accession_number',
-               input_path="data/msft_8k_item_5_02.csv",
-               output_path='data/msft_officers.csv')
-```
+### Entries
+Entries consist of an identifier and the text to be structured.
+```python
+entries = [
+    (0,
+    """First Business Financial Services, Inc. (the "Company") issued a press release today 
+    announcing that the Company's Board of Directors declared a quarterly dividend of $0.18 
+    per share on April 30, 2021, unchanged compared to the last quarterly dividend per share. 
+    The dividend is payable on May 24, 2021 to shareholders of record on May 10, 2021. 
+    Also on July 12, 2020 there was a payable dividend of $0.15 per share to shareholders 
+    of record on July 1st, 2020."""),
 
-### Standardize the dataset
-```
-builder.standardize(response_schema=response_schema,input_path='data/msft_officers.csv', output_path='data/msft_officers_standardized.csv',columns=['name'])
-```
-
-### Validate the dataset
-```
-results = builder.validate(input_path='data/msft_8k_item_5_02.csv',
-                 output_path= 'data/msft_officers_standardized.csv', 
-                 text_column='text',
-                 index_column='accession_number', 
-                 base_prompt=base_prompt,
-                 response_schema=response_schema,
-                 n=5,
-                 quiet=False)
-```
-
-#### Example Validation Output
-```
-[{
-    "input_text": "Item 5.02 Departure of Directors... Kevin Turner provided notice he was resigning his position as Chief Operating Officer of Microsoft.",
-    "process_output": [{
-        "date": 20160630,
-        "name": "Kevin Turner",
-        "title": "Chief Operating Officer",
-        "action": "RESIGNED"
-    }],
-    "is_valid": true,
-    "reason": "The generated JSON is valid..."
-},...
+    (1,"""XYZ Corp declared a dividend of $0.25 per share, payable June 15, 2021 
+    to shareholders of record as of June 1, 2021.""")
 ]
 ```
+
+### Prompt
+Choose a prompt such as:
+```python
+prompt = "Extract ALL dividend information from this text"
+```
+
+### Dataset Builder Initialization
+
+Choose the requests per minute that work for your api key and model.
+
+```python
+builder = DatasetBuilder(
+    prompt=prompt,
+    schema=DividendExtraction,
+    model="gemini-2.5-flash-lite",
+    entries=entries,
+    rpm=4000
+)
+```
+
+### Build
+```python
+builder.build()
+```
+
+### Save
+```python
+builder.save('test.csv')
+```
+
+Result:
+
+| _id | dividend_per_share | payment_date                  | record_date                   | stock_type_specified |
+|-----|---------------------|-------------------------------|-------------------------------|-----------------------|
+| 0   | 0.18                | 2021-05-24 00:00:00+00:00    | 2021-05-10 00:00:00+00:00    |                       |
+| 0   | 0.15                | 2020-07-12 00:00:00+00:00    | 2020-07-01 00:00:00+00:00    |                       |
+| 1   | 0.25                | 2021-06-15 00:00:00+00:00    | 2021-06-01 00:00:00+00:00    |                       |
+
+
+## Future Features
+* validate() - checks that data types are expected. Needed less, thanks to the development of pydantic.
+* standardize() - standardizes data.
+
 
