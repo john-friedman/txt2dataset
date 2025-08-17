@@ -1,4 +1,4 @@
-from dataset_builder import DatasetBuilder
+from txt2dataset import DatasetBuilder
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime

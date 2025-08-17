@@ -7,10 +7,10 @@ with open(os.path.join(os.path.dirname(__file__), '../readme.md'), encoding='utf
 
 setup(
     name="txt2dataset",
-    version="0.4.0",
+    version="0.4.1",
     packages=find_packages(),
     install_requires=[
-        "google-generativeai",
+        "google-genai",
         "tqdm",
     ],
     description="Convert text to datasets",
