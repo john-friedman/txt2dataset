@@ -65,7 +65,9 @@ builder = DatasetBuilder(
     schema=DividendExtraction,
     model="gemini-2.5-flash-lite",
     entries=entries,
-    rpm=4000
+    rpm=4000,
+    max_concurrent = 20,
+    timeout = 60,
 )
 ```
 

@@ -37,14 +37,15 @@ class AsyncRateLimiter:
             self.request_times.append(now)
 
 class DatasetBuilder:
-    def __init__(self, prompt, schema, model, entries, rpm=60, api_key=None, max_concurrent=10):
+    def __init__(self, prompt, schema, model, entries, rpm=60, api_key=None, max_concurrent=10,timeout=60):
         self.prompt = prompt
         self.schema = schema
         self.model = model
         self.rpm = rpm
         self.max_concurrent = max_concurrent
-        self.entries = entries  # Will be modified in place
+        self.entries = entries 
         self.info_found_bool = "info_found"
+        self.timeout = timeout
         
         # Check API key
         if not api_key and not os.getenv("GEMINI_API_KEY"):
@@ -99,18 +100,24 @@ class DatasetBuilder:
                 self.pbar.update(1)
 
     async def _make_api_call(self, text):
-        """Make rate-limited API call"""
+        """Make rate-limited API call with timeout"""
         await self.rate_limiter.acquire()
         
-        response = await self.client.aio.models.generate_content(
-            model=self.model,
-            contents=f"{self.prompt}: {text}",
-            config={
-                "response_mime_type": "application/json",
-                "response_schema": self.schema,
-            },
-        )
-        return response
+        try:
+            response = await asyncio.wait_for(
+                self.client.aio.models.generate_content(
+                    model=self.model,
+                    contents=f"{self.prompt}: {text}",
+                    config={
+                        "response_mime_type": "application/json",
+                        "response_schema": self.schema,
+                    },
+                ),
+                timeout=self.timeout
+            )
+            return response
+        except asyncio.TimeoutError:
+            raise Exception(f"API request timed out after {self.timeout} seconds")
 
     def _process_response(self, response, entry_id):
         """Process a single API response and return (results, tokens_used)"""
