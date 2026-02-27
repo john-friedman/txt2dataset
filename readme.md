@@ -77,3 +77,6 @@ responses = builder.build(prompt=prompt, schema=DividendExtraction, model="gemin
 ### Examples
 
 See [examples](examples/).
+
+### TODO
+- handle errors

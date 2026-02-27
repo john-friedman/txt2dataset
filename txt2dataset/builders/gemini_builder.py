@@ -52,14 +52,14 @@ class GeminiAPIBuilder:
         )
 
         results = []
+        errors = []
         for r in responses:
             if "result" not in r:
-                results.append({"id": r["id"], "error": r.get("error")})
+                errors.append({"id": r["id"], "error": r.get("error")})
                 continue
 
             parsed = json.loads(r["result"])
 
-            # Update session token counts
             usage = parsed.get("usageMetadata", {})
             self.input_tokens_used_session += usage.get("promptTokenCount", 0)
             self.output_tokens_used_session += usage.get("candidatesTokenCount", 0)
@@ -68,10 +68,9 @@ class GeminiAPIBuilder:
             structured = json.loads(text)
 
             if not structured.get("info_found") or not structured.get("data"):
-                results.append({"id": r["id"], "info_found": False})
-                continue
+                continue  # just skip, don't pollute results
 
-            for dividend in structured["data"]:
-                results.append({"id": r["id"], **dividend})
+            for item in structured["data"]:
+                results.append({"id": r["id"], **item})
 
         return results
