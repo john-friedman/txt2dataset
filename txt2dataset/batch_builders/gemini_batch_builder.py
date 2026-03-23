@@ -1,4 +1,5 @@
 import os
+import csv
 import json
 import time
 import urllib.request
@@ -70,21 +71,27 @@ class GeminiBatchBuilder:
         return resp["name"]
 
     def get_job_status(self, job_name: str) -> dict:
-        return self._get(job_name)
+        status = self._get(job_name)
+        return {
+            "state": status.get("state"),
+            "done": status.get("done", False),
+            "stats": status.get("metadata", {}).get("batchStats"),
+            "created": status.get("metadata", {}).get("createTime"),
+            "ended": status.get("metadata", {}).get("endTime"),
+        }
 
     def list_jobs(self) -> list:
         return self._get("batches").get("operations", [])
 
-    def download_job(self, job_name: str) -> list:
-        status = self.get_job_status(job_name)
-        state = status.get("metadata", {}).get("state")
+    def download_job(self, job_name: str, output_path: str) -> str:
+        status = self._get(job_name)
 
-        if state != "BATCH_STATE_SUCCEEDED":
+        if not status.get("done", False):
+            state = status.get("metadata", {}).get("state", "UNKNOWN")
             raise ValueError(f"Job not complete, current state: {state}")
 
         inlined = (
             status.get("response", {})
-            .get("output", {})
             .get("inlinedResponses", {})
             .get("inlinedResponses", [])
         )
@@ -99,7 +106,18 @@ class GeminiBatchBuilder:
             if not structured.get("info_found") or not structured.get("data"):
                 results.append({"index": i, "info_found": False})
                 continue
-            for dividend in structured["data"]:
-                results.append({"index": i, **dividend})
+            for row in structured["data"]:
+                results.append({"index": i, **row})
 
-        return results
+        if not results:
+            raise ValueError("No results to write.")
+
+        # Collect all keys across all rows
+        fieldnames = list(dict.fromkeys(k for row in results for k in row.keys()))
+
+        with open(output_path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore", restval="")
+            writer.writeheader()
+            writer.writerows(results)
+
+        return output_path
