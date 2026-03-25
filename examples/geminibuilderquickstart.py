@@ -32,6 +32,9 @@ entries = [{'id':0, 'context':
 print(f"Input tokens: {estimate_entries_tokens(entries)}")
 prompt = "Extract ALL dividend information from this text"
 builder = GeminiAPIBuilder()
-responses = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
+results = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
                entries=entries, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
-
+print(results)
+spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
+               results=results, sample_size=10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+print(spotchecks)

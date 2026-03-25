@@ -59,8 +59,8 @@ async def process_payloads(
     tpm,
     rpm_threshold=0.75,
     tpm_threshold=0.75,
-    max_concurrency=10,
-    timeout=60,
+    max_concurrency=200,
+    timeout=15,
 ):
     limiter = _AsyncRateLimiter(rpm, tpm, rpm_threshold, tpm_threshold)
     semaphore = asyncio.Semaphore(max_concurrency)

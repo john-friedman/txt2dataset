@@ -62,17 +62,35 @@ Choose the requests per minute that work for your api key and model.
 from txt2dataset import GeminiAPIBuilder
 
 builder = GeminiAPIBuilder()
-responses = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
+results = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
                entries=entries, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 ```
 
-### Result:
+Result
 
-| _id | dividend_per_share | payment_date                  | record_date                   | stock_type_specified |
+| id | dividend_per_share | payment_date                  | record_date                   | stock_type_specified |
 |-----|---------------------|-------------------------------|-------------------------------|-----------------------|
-| 0   | 0.18                | 2021-05-24 00:00:00+00:00    | 2021-05-10 00:00:00+00:00    |                       |
-| 0   | 0.15                | 2020-07-12 00:00:00+00:00    | 2020-07-01 00:00:00+00:00    |                       |
+| 0   | 0.18                | 2021-05-24 00:00:00+00:00    | 2021-05-10 00:00:00+00:00    | quarterly             |
+| 0   | 0.15                | 2020-07-12 00:00:00+00:00    | 2020-07-01 00:00:00+00:00    | quarterly             |
 | 1   | 0.25                | 2021-06-15 00:00:00+00:00    | 2021-06-01 00:00:00+00:00    |                       |
+
+
+
+### Spot Checking
+Use `spotcheck()` to check if results look good. Highly recommended to use a more powerful model for spot checking, and cheap model for dataset generation.
+
+```python
+
+spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
+               results=results, sample_size = 10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+```
+
+Result
+
+| id | correct | desc |
+|----|---------|------|
+| 1  | true    |      |
+| 0  | false   | The `stock_type_specified` for the $0.15 dividend is incorrectly listed as `'quarterly'`; the source text does not explicitly state it for this particular dividend, so it should be `null`. |
 
 ### Examples
 
@@ -80,3 +98,6 @@ See [examples](examples/).
 
 ### TODO
 - handle errors
+- spotcheck
+- standardize
+- store rate limits across multiple build commands
