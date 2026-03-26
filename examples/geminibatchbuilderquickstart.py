@@ -1,4 +1,4 @@
-from txt2dataset import GeminiBatchBuilder
+from txt2dataset import GeminiAPIBatchBuilder
 
 from pydantic import BaseModel
 from typing import Optional, List
@@ -29,7 +29,7 @@ entries = [{'id':0, 'context':
     
 ]
 prompt = "Extract ALL dividend information from this text"
-builder = GeminiBatchBuilder()
+builder = GeminiAPIBatchBuilder()
 
 # e.g. batches/q4dn0s5h11m9ttsbo6165b9jndnf5enubr5m
 job = 'batches/q4dn0s5h11m9ttsbo6165b9jndnf5enubr5m'

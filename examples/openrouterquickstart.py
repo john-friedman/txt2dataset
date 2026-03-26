@@ -1,4 +1,4 @@
-from txt2dataset import GeminiAPIBuilder, estimate_entries_tokens
+from txt2dataset import OpenRouterAPIBuilder, estimate_entries_tokens
 
 from pydantic import BaseModel
 from typing import Optional, List
@@ -25,21 +25,31 @@ entries = [{'id':0, 'context':
 
     {"id":1,"context": """XYZ Corp declared a dividend of $0.25 per share, payable June 15, 2021 
     to shareholders of record as of June 1, 2021."""},
-    
-    
 ]
-# estimate entries token , does not include schema
+
+# estimate entries tokens, does not include schema
 print(f"Input tokens: {estimate_entries_tokens(entries)}")
+
 prompt = "Extract ALL dividend information from this text"
-builder = GeminiAPIBuilder()
-results, errors = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
+
+# export OPENROUTER_API_KEY=sk-or-... or pass api_key="sk-or-..."
+builder = OpenRouterAPIBuilder()
+
+# Use any model available on OpenRouter: https://openrouter.ai/models
+results, errors = builder.build(prompt=prompt, schema=DividendExtraction, model="google/gemini-2.5-flash",
                entries=entries, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+print(f"Results: {len(results)}, Errors: {len(errors)}")
+if errors:
+    print("Errors:", errors)
 print(results)
-spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
-               results=results, sample_size=10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+
+spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model="google/gemini-2.5-flash",
+               entries=entries, results=results, sample_size=10,
+               rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 print(spotchecks)
 
-builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
-               results=results, sample_size=10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model="google/gemini-2.5-flash",
+               entries=entries, results=results, sample_size=10,
+               rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 
 input("Press Enter to stop the visualizer...")

@@ -6,7 +6,7 @@ import urllib.request
 from ..utils.utils import pydantic_to_json_schema
 
 
-class GeminiBatchBuilder:
+class GeminiAPIBatchBuilder:
     def __init__(self, api_key=None):
         if api_key:
             self.api_key = api_key
