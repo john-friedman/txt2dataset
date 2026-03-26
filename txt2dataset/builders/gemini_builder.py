@@ -2,6 +2,7 @@ import asyncio
 import os
 from ..utils.builder_rate_limits import process_payloads
 from ..utils.utils import pydantic_to_json_schema
+from ..utils.visualize import visualize
 import json
 import random
 
@@ -79,7 +80,7 @@ class GeminiAPIBuilder:
 
         return results
 
-    def spotcheck(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75):
+    def spotcheck(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, return_details=False):
         grouped_results = {}
         for row in results:
             row_id = row.get("id")
@@ -164,14 +165,44 @@ class GeminiAPIBuilder:
             text = parsed["candidates"][0]["content"]["parts"][0]["text"]
             check = json.loads(text)
 
+            row_id = sampled_ids[i]
+
             item = {
-                "id": sampled_ids[i],
+                "id": row_id,
                 "correct": check["correct"],
                 "desc": "",
             }
             if not check["correct"]:
                 item["desc"] = check.get("desc", "")
 
+            if return_details:
+                extracted_rows = grouped_results.get(row_id, [])
+                item["extracted_rows"] = [{k: v for k, v in row.items() if k != "id"} for row in extracted_rows]
+                item["context"] = entries_by_id.get(row_id, "")
+
             spotcheck_results.append(item)
 
+        return spotcheck_results
+
+    def spotcheck_visualize(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, port=8000):
+        """Run spotcheck with details, then launch a local browser to inspect results."""
+        spotcheck_results = self.spotcheck(
+            prompt=prompt,
+            schema=schema,
+            model=model,
+            entries=entries,
+            results=results,
+            sample_size=sample_size,
+            rpm=rpm,
+            tpm=tpm,
+            rpm_threshold=rpm_threshold,
+            tpm_threshold=tpm_threshold,
+            return_details=True,
+        )
+
+        if not spotcheck_results:
+            print("No spotcheck results to visualize.")
+            return []
+
+        visualize(spotcheck_results, port=port)
         return spotcheck_results

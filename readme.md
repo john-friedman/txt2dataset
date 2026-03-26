@@ -92,6 +92,17 @@ Result
 | 1  | true    |      |
 | 0  | false   | The `stock_type_specified` for the $0.15 dividend is incorrectly listed as `'quarterly'`; the source text does not explicitly state it for this particular dividend, so it should be `null`. |
 
+### Spot Checking Visualization
+
+Use `spotcheck_visualize()` for an interactive visual method. 
+
+```python
+
+builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
+               results=results, sample_size = 10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+```
+![spot check visualization](spotcheck_visualization.png)
+
 ### Examples
 
 See [examples](examples/).
