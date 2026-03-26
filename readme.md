@@ -4,7 +4,7 @@ A package for building, standardizing and validating datasets using language mod
 * [Get a Gemini API Key](https://ai.google.dev/gemini-api/docs/api-key)
 
 ## Models Supported
-* Gemini
+* Gemini - Make sure to set your "GEMINI_API_KEY" to environment.
 
 ## Installation
 

@@ -97,13 +97,15 @@ class GeminiAPIBuilder:
         check_schema = {
             "type": "object",
             "properties": {
-                "correct": {"type": "boolean"},
+                "verdict": {
+                    "type": "string",
+                    "enum": ["correct", "fabricated", "debatable"]
+                },
                 "desc": {"type": "string"},
             },
-            "required": ["correct"],
+            "required": ["verdict"],
         }
 
-        extraction_schema = pydantic_to_json_schema(schema)
         endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
         spotcheck_entries = []
@@ -113,17 +115,16 @@ class GeminiAPIBuilder:
             rows = grouped_results.get(row_id, [])
             rows_for_check = [{k: v for k, v in row.items() if k != "id"} for row in rows]
             rows_json = json.dumps(rows_for_check, ensure_ascii=False)
-            schema_json = json.dumps(extraction_schema, ensure_ascii=False)
             check_prompt = (
-                "You are reviewing extracted results for one source document.\n"
-                #f"Original extraction prompt: {prompt}\n"
-                #f"Expected extraction schema: {schema_json}\n"
+                "Here is a source document and some data extracted from it.\n\n"
                 f"Source text:\n{context}\n\n"
-                f"Extracted rows for this source:\n{rows_json}\n\n"
+                f"Extracted data:\n{rows_json}\n\n"
+                "Does the extracted data look right based on the document? "
+                "Only flag it as wrong if something is egregiously wrong — meaning "
+                "the extracted value cannot be found in or inferred from the source text with some generosity.\n\n"
                 "Return JSON with:\n"
-                "- correct: true if the extracted rows are overall correct.\n"
-                "- overall correct is if the extracted information is good enough, without glaring errors such as massive hallucinations.\n" \
-                "- example: if model infers correct legal code from snippet that is not a hallucination. if model makes up a legal code that is."
+                "- verdict: 'correct', 'fabricated', or 'debatable'\n"
+                "- desc: brief explanation\n"
             )
 
             spotcheck_entries.append({"id": row_id, "context": context})
@@ -169,11 +170,10 @@ class GeminiAPIBuilder:
 
             item = {
                 "id": row_id,
-                "correct": check["correct"],
-                "desc": "",
+                "verdict": check["verdict"],
+                "correct": check["verdict"] != "fabricated",  # backward compat
+                "desc": check.get("desc", ""),
             }
-            if not check["correct"]:
-                item["desc"] = check.get("desc", "")
 
             if return_details:
                 extracted_rows = grouped_results.get(row_id, [])
@@ -183,7 +183,6 @@ class GeminiAPIBuilder:
             spotcheck_results.append(item)
 
         return spotcheck_results
-
     def spotcheck_visualize(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, port=8000):
         """Run spotcheck with details, then launch a local browser to inspect results."""
         spotcheck_results = self.spotcheck(
