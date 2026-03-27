@@ -1,52 +1,113 @@
 import asyncio
 import os
-from ..utils.builder_rate_limits import process_payloads, GEMINI_CONFIG
+from ..utils.builder_rate_limits import process_payloads, ProviderConfig
 from ..utils.utils import pydantic_to_json_schema
 from ..utils.visualize import visualize
 import json
 import random
 
 
-class GeminiAPIBuilder:
-    def __init__(self, api_key=None):
+def _openai_text_extractor(p):
+    return next(
+        (m["content"] for m in reversed(p["messages"]) if m.get("role") == "user"),
+        "",
+    )
+
+
+class OpenAIAPIBuilder:
+    def __init__(self, api_key=None, endpoint=None, auth_header="Authorization"):
+        """
+        Args:
+            api_key: API key. Falls back to OPENAI_API_KEY env var if not provided.
+            endpoint: Full endpoint URL. Defaults to OpenAI's chat completions endpoint.
+                      For Azure, pass something like:
+                      "https://{resource}.cognitiveservices.azure.com/openai/deployments/{deployment}/chat/completions?api-version=2024-12-01-preview"
+            auth_header: How the API key is sent in headers.
+                         "Authorization" (default) -> sends "Authorization: Bearer {key}" (OpenAI standard)
+                         "api-key" -> sends "api-key: {key}" (Azure style)
+                         Any other string -> sends "{auth_header}: {key}" as a plain header
+        """
         if api_key:
             self.api_key = api_key
         else:
             try:
-                self.api_key = os.environ["GEMINI_API_KEY"]
+                self.api_key = os.environ["OPENAI_API_KEY"]
             except Exception:
-                raise ValueError("No api key specified and none found in environment: GEMINI_API_KEY.")
-            
+                raise ValueError("No api key specified and none found in environment: OPENAI_API_KEY.")
+
+        self.endpoint = endpoint or "https://api.openai.com/v1/chat/completions"
+        self.auth_header = auth_header
+
+        # Build the provider config based on auth style
+        if self.auth_header == "Authorization":
+            auth_mode = "bearer"
+        else:
+            auth_mode = ("header_key", self.auth_header)
+
+        self._provider_config = ProviderConfig(
+            auth_mode=auth_mode,
+            text_extractor=_openai_text_extractor,
+        )
+
         self.input_tokens_used_session = 0
         self.output_tokens_used_session = 0
 
+    def _make_schema_config(self, schema):
+        """Build the OpenAI response_format block for structured output."""
+        json_schema = pydantic_to_json_schema(schema)
+        self._add_additional_properties_false(json_schema)
+        return {
+            "type": "json_schema",
+            "json_schema": {
+                "name": "extraction_schema",
+                "strict": True,
+                "schema": json_schema,
+            },
+        }
+
+    @staticmethod
+    def _add_additional_properties_false(schema):
+        """Recursively add additionalProperties: false and ensure all properties
+        are listed in required. OpenAI strict mode demands both on every object."""
+        if not isinstance(schema, dict):
+            return
+        if schema.get("type") == "object":
+            schema["additionalProperties"] = False
+            if "properties" in schema:
+                schema["required"] = list(schema["properties"].keys())
+        for value in schema.values():
+            if isinstance(value, dict):
+                OpenAIAPIBuilder._add_additional_properties_false(value)
+            elif isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        OpenAIAPIBuilder._add_additional_properties_false(item)
+
     def build(self, prompt, schema, model, entries, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75):
-        """Entries is list of {id,context}"""
+        """Entries is list of {id, context}"""
         if not entries:
             raise ValueError("entries is empty")
 
+        response_format = self._make_schema_config(schema)
 
-        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
         payloads = [
             {
-                "contents": [
-                    {"role": "user", "parts": [{"text": f"{prompt}: {entry['context']}"}]}
+                "model": model,
+                "messages": [
+                    {"role": "user", "content": f"{prompt}: {entry['context']}"}
                 ],
-                "generationConfig": {
-                    "responseMimeType": "application/json",
-                    "responseSchema": pydantic_to_json_schema(schema),
-                },
+                "response_format": response_format,
             }
             for entry in entries
         ]
 
-        responses =  asyncio.run(
+        responses = asyncio.run(
             process_payloads(
                 payloads=payloads,
                 entries=entries,
-                endpoint=endpoint,
+                endpoint=self.endpoint,
                 api_key=self.api_key,
-                provider_config=GEMINI_CONFIG,
+                provider_config=self._provider_config,
                 rpm=rpm,
                 tpm=tpm,
                 rpm_threshold=rpm_threshold,
@@ -63,11 +124,17 @@ class GeminiAPIBuilder:
 
                 parsed = json.loads(r["result"])
 
-                usage = parsed.get("usageMetadata", {})
-                self.input_tokens_used_session += usage.get("promptTokenCount", 0)
-                self.output_tokens_used_session += usage.get("candidatesTokenCount", 0)
+                usage = parsed.get("usage", {})
+                self.input_tokens_used_session += usage.get("prompt_tokens", 0)
+                self.output_tokens_used_session += usage.get("completion_tokens", 0)
 
-                text = parsed["candidates"][0]["content"]["parts"][0]["text"]
+                text = parsed["choices"][0]["message"]["content"]
+
+                refusal = parsed["choices"][0]["message"].get("refusal")
+                if refusal:
+                    errors.append({"id": r["id"], "error": f"Model refused: {refusal}"})
+                    continue
+
                 structured = json.loads(text)
 
                 if not structured.get("info_found") or not structured.get("data"):
@@ -104,10 +171,9 @@ class GeminiAPIBuilder:
                 },
                 "desc": {"type": "string"},
             },
-            "required": ["verdict"],
+            "required": ["verdict", "desc"],
+            "additionalProperties": False,
         }
-
-        endpoint = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 
         spotcheck_entries = []
         payloads = []
@@ -131,12 +197,17 @@ class GeminiAPIBuilder:
             spotcheck_entries.append({"id": row_id, "context": context})
             payloads.append(
                 {
-                    "contents": [
-                        {"role": "user", "parts": [{"text": check_prompt}]}
+                    "model": model,
+                    "messages": [
+                        {"role": "user", "content": check_prompt}
                     ],
-                    "generationConfig": {
-                        "responseMimeType": "application/json",
-                        "responseSchema": check_schema,
+                    "response_format": {
+                        "type": "json_schema",
+                        "json_schema": {
+                            "name": "spotcheck_verdict",
+                            "strict": True,
+                            "schema": check_schema,
+                        },
                     },
                 }
             )
@@ -145,9 +216,9 @@ class GeminiAPIBuilder:
             process_payloads(
                 payloads=payloads,
                 entries=spotcheck_entries,
-                endpoint=endpoint,
+                endpoint=self.endpoint,
                 api_key=self.api_key,
-                provider_config=GEMINI_CONFIG,
+                provider_config=self._provider_config,
                 rpm=rpm,
                 tpm=tpm,
                 rpm_threshold=rpm_threshold,
@@ -163,11 +234,11 @@ class GeminiAPIBuilder:
                     continue
 
                 parsed = json.loads(r["result"])
-                usage = parsed.get("usageMetadata", {})
-                self.input_tokens_used_session += usage.get("promptTokenCount", 0)
-                self.output_tokens_used_session += usage.get("candidatesTokenCount", 0)
+                usage = parsed.get("usage", {})
+                self.input_tokens_used_session += usage.get("prompt_tokens", 0)
+                self.output_tokens_used_session += usage.get("completion_tokens", 0)
 
-                text = parsed["candidates"][0]["content"]["parts"][0]["text"]
+                text = parsed["choices"][0]["message"]["content"]
                 check = json.loads(text)
 
                 row_id = sampled_ids[i]
@@ -175,7 +246,7 @@ class GeminiAPIBuilder:
                 item = {
                     "id": row_id,
                     "verdict": check["verdict"],
-                    "correct": check["verdict"] != "fabricated",  # backward compat
+                    "correct": check["verdict"] != "fabricated",
                     "desc": check.get("desc", ""),
                 }
 
@@ -189,6 +260,7 @@ class GeminiAPIBuilder:
                 errors.append({"id": r.get("id", "unknown") if r else "unknown", "error": str(e)})
 
         return spotcheck_results
+
     def spotcheck_visualize(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, port=8000):
         """Run spotcheck with details, then launch a local browser to inspect results."""
         spotcheck_results = self.spotcheck(

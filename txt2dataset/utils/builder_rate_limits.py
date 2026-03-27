@@ -24,6 +24,10 @@ class ProviderConfig:
             return {"key": api_key}, {}
         elif self.auth_mode == "bearer":
             return {}, {"Authorization": f"Bearer {api_key}"}
+        elif isinstance(self.auth_mode, tuple) and self.auth_mode[0] == "header_key":
+            # ("header_key", "api-key") -> sends {"api-key": api_key}
+            header_name = self.auth_mode[1]
+            return {}, {header_name: api_key}
         else:
             raise ValueError(f"Unknown auth_mode: {self.auth_mode}")
 
@@ -40,6 +44,14 @@ GEMINI_CONFIG = ProviderConfig(
 )
 
 OPENROUTER_CONFIG = ProviderConfig(
+    auth_mode="bearer",
+    text_extractor=lambda p: next(
+        (m["content"] for m in reversed(p["messages"]) if m.get("role") == "user"),
+        "",
+    ),
+)
+
+OPENAI_CONFIG = ProviderConfig(
     auth_mode="bearer",
     text_extractor=lambda p: next(
         (m["content"] for m in reversed(p["messages"]) if m.get("role") == "user"),
@@ -103,7 +115,7 @@ async def process_payloads(
     rpm_threshold=0.75,
     tpm_threshold=0.75,
     max_concurrency=200,
-    timeout=15,
+    timeout=60,
 ):
     limiter = _AsyncRateLimiter(rpm, tpm, rpm_threshold, tpm_threshold)
     semaphore = asyncio.Semaphore(max_concurrency)

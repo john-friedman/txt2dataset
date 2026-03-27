@@ -44,7 +44,7 @@ class OpenRouterAPIBuilder:
             {
                 "model": model,
                 "messages": [
-                    {"role": "user", "content": f"{prompt}: {entry['context']}"}
+                    {"role": "user", "content": f"{prompt}: {entry['context']}\n\nRespond with JSON only."}
                 ],
                 "response_format": {
                     "type": "json_schema",
@@ -75,11 +75,14 @@ class OpenRouterAPIBuilder:
         results = []
         errors = []
         for r in responses:
+
             try:
                 if r is None or "result" not in r:
                     raise ValueError("None response")
 
                 parsed = json.loads(r["result"])
+
+
 
                 usage = parsed.get("usage", {})
                 self.input_tokens_used_session += usage.get("prompt_tokens", 0)
@@ -198,36 +201,40 @@ class OpenRouterAPIBuilder:
         )
 
         spotcheck_results = []
+        errors = []
         for i, r in enumerate(responses):
-            if r is None or "result" not in r:
-                continue
+            try:
+                if r is None or "result" not in r:
+                    continue
 
-            parsed = json.loads(r["result"])
-            usage = parsed.get("usage", {})
-            self.input_tokens_used_session += usage.get("prompt_tokens", 0)
-            self.output_tokens_used_session += usage.get("completion_tokens", 0)
+                parsed = json.loads(r["result"])
+                usage = parsed.get("usage", {})
+                self.input_tokens_used_session += usage.get("prompt_tokens", 0)
+                self.output_tokens_used_session += usage.get("completion_tokens", 0)
 
-            text = parsed["choices"][0]["message"]["content"]
-            check = json.loads(text)
+                text = parsed["choices"][0]["message"]["content"]
+                check = json.loads(text)
 
-            row_id = sampled_ids[i]
+                row_id = sampled_ids[i]
 
-            item = {
-                "id": row_id,
-                "verdict": check["verdict"],
-                "correct": check["verdict"] != "fabricated",
-                "desc": check.get("desc", ""),
-            }
+                item = {
+                    "id": row_id,
+                    "verdict": check["verdict"],
+                    "correct": check["verdict"] != "fabricated",
+                    "desc": check.get("desc", ""),
+                }
 
-            if return_details:
-                extracted_rows = grouped_results.get(row_id, [])
-                item["extracted_rows"] = [
-                    {k: v for k, v in row.items() if k != "id"}
-                    for row in extracted_rows
-                ]
-                item["context"] = entries_by_id.get(row_id, "")
+                if return_details:
+                    extracted_rows = grouped_results.get(row_id, [])
+                    item["extracted_rows"] = [
+                        {k: v for k, v in row.items() if k != "id"}
+                        for row in extracted_rows
+                    ]
+                    item["context"] = entries_by_id.get(row_id, "")
 
-            spotcheck_results.append(item)
+                spotcheck_results.append(item)
+            except Exception as e:
+                errors.append({"id": r.get("id", "unknown") if r else "unknown", "error": str(e)})
 
         return spotcheck_results
 

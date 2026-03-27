@@ -7,6 +7,8 @@ A package for building, standardizing and validating datasets using language mod
 
 * Gemini - Make sure to set your "GEMINI_API_KEY" to environment.
 * OpenRouter - "OPENROUTER_API_KEY"
+* OpenAI - "OPENAI_API_KEY"
+* Custom OpenAI Endpoint - such as via Azure.
 
 ## Installation
 
@@ -108,9 +110,3 @@ builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model="gem
 ### Examples
 
 See [examples](examples/).
-
-### TODO
-- handle errors
-- spotcheck
-- standardize
-- store rate limits across multiple build commands
