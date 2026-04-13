@@ -1,13 +1,73 @@
 import html
+import json
 import threading
 import webbrowser
+from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
+from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+
+from .. import config
 
 
 _current_server = None
 _current_thread = None
 _version = 0
+
+
+def _json_for_script(obj):
+    """JSON for embedding in HTML <script> blocks."""
+    return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+
+def _reject_path(reject_file=None):
+    if reject_file is None:
+        reject_file = config.DEFAULT_REJECT_FILE
+    path = Path(reject_file)
+    if not path.is_absolute():
+        path = Path.cwd() / path
+    return path
+
+
+def _load_rejects(path):
+    if not path.exists():
+        return []
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    return data if isinstance(data, list) else []
+
+
+def _write_rejects(path, rejects):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = path.with_name(path.name + ".tmp")
+    tmp_path.write_text(json.dumps(rejects, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    tmp_path.replace(path)
+
+
+def _save_reject(reject_record, reject_file=None):
+    path = _reject_path(reject_file)
+    rejects = _load_rejects(path)
+
+    reject_id = reject_record.get("id")
+    existing = None
+    for item in rejects:
+        if item.get("id") == reject_id:
+            existing = item
+            break
+
+    action = "added"
+    if existing is not None:
+        existing.update(reject_record)
+        action = "updated"
+    else:
+        rejects.append(reject_record)
+
+    _write_rejects(path, rejects)
+    return {"ok": True, "file": str(path), "count": len(rejects), "action": action, "id": reject_id}
 
 
 def _table(headers, rows, row_styles=None):
@@ -173,12 +233,125 @@ def _render_page(items, index, version):
         margin-bottom: 4px;
         font-size: 14px;
     }}
+    .toast {{
+        position: fixed;
+        top: 14px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: #1f1f1f;
+        color: #fff;
+        padding: 8px 12px;
+        border-radius: 6px;
+        font-size: 12px;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 120ms ease-in-out;
+        max-width: 92vw;
+        z-index: 999;
+    }}
+    .toast.show {{ opacity: 0.92; }}
 </style>
 </head>
 <body>
+    <div id="toast" class="toast"></div>
     {body}
     {nav}
 <script>
+    const HOTKEY_BACK = {_json_for_script(config.HOTKEY_BACK)};
+    const HOTKEY_FORWARD = {_json_for_script(config.HOTKEY_FORWARD)};
+    const HOTKEY_COPY_EXTRACTED_ROWS = {_json_for_script(config.HOTKEY_COPY_EXTRACTED_ROWS)};
+    const HOTKEY_REJECT = {_json_for_script(config.HOTKEY_REJECT)};
+
+    const PREV_URL = "/?row={prev_idx}";
+    const NEXT_URL = "/?row={next_idx}";
+    const CURRENT_ROW = {index};
+    const EXTRACTED_ROWS = {_json_for_script(item.get("extracted_rows", []))};
+
+    const toastEl = document.getElementById("toast");
+    let toastTimer = null;
+
+    function toast(message) {{
+        if (!toastEl) return;
+        toastEl.textContent = message;
+        toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toastEl.classList.remove("show"), 1100);
+    }}
+
+    async function copyText(text) {{
+        if (navigator.clipboard && navigator.clipboard.writeText) {{
+            await navigator.clipboard.writeText(text);
+            return;
+        }}
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+    }}
+
+    async function copyExtractedRows() {{
+        const text = JSON.stringify(EXTRACTED_ROWS, null, 2);
+        try {{
+            await copyText(text);
+            toast("COPIED EXTRACTED ROWS");
+        }} catch (e) {{
+            toast("COPY FAILED");
+        }}
+    }}
+
+    async function rejectCurrent() {{
+        try {{
+            const resp = await fetch("/reject", {{
+                method: "POST",
+                headers: {{"Content-Type": "application/json"}},
+                body: JSON.stringify({{ row: CURRENT_ROW }}),
+            }});
+            if (!resp.ok) {{
+                throw new Error(await resp.text());
+            }}
+            const data = await resp.json();
+            toast("REJECTED (SAVED " + data.file + ")");
+            setTimeout(() => {{ window.location.href = NEXT_URL; }}, 200);
+        }} catch (e) {{
+            toast("REJECT FAILED");
+        }}
+    }}
+
+    document.addEventListener("keydown", (e) => {{
+        const target = e.target;
+        if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {{
+            return;
+        }}
+        if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+        const key = e.key.length === 1 ? e.key.toUpperCase() : e.key;
+        if (HOTKEY_BACK.includes(key)) {{
+            e.preventDefault();
+            window.location.href = PREV_URL;
+            return;
+        }}
+        if (HOTKEY_FORWARD.includes(key)) {{
+            e.preventDefault();
+            window.location.href = NEXT_URL;
+            return;
+        }}
+        if (HOTKEY_COPY_EXTRACTED_ROWS.includes(key)) {{
+            e.preventDefault();
+            copyExtractedRows();
+            return;
+        }}
+        if (HOTKEY_REJECT.includes(key)) {{
+            e.preventDefault();
+            rejectCurrent();
+            return;
+        }}
+    }});
+
     const currentVersion = {version};
     setInterval(async () => {{
         try {{
@@ -246,6 +419,55 @@ def visualize(spotcheck_results, port=8000):
             self.send_header("Content-Type", "text/html")
             self.end_headers()
             self.wfile.write(page.encode())
+
+        def do_POST(self):
+            parsed_url = urlparse(self.path)
+
+            if parsed_url.path != "/reject":
+                self.send_response(404)
+                self.end_headers()
+                return
+
+            try:
+                content_length = int(self.headers.get("Content-Length", 0))
+            except Exception:
+                content_length = 0
+
+            payload = {}
+            if content_length:
+                try:
+                    raw = self.rfile.read(content_length)
+                    payload = json.loads(raw.decode("utf-8"))
+                except Exception:
+                    payload = {}
+
+            try:
+                row = int(payload.get("row", 0)) % len(items)
+            except Exception:
+                row = 0
+
+            item = items[row]
+            record = {
+                "id": item.get("id"),
+                "rejected_at": datetime.now(timezone.utc).isoformat(),
+                "correct": item.get("correct", True),
+                "verdict": item.get("verdict"),
+                "desc": item.get("desc", ""),
+                "extracted_rows": item.get("extracted_rows", []),
+                "context": item.get("context", ""),
+            }
+
+            try:
+                result = _save_reject(record)
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps(result, ensure_ascii=False).encode("utf-8"))
+            except Exception as e:
+                self.send_response(500)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.end_headers()
+                self.wfile.write(json.dumps({"ok": False, "error": str(e)}, ensure_ascii=False).encode("utf-8"))
 
         def log_message(self, fmt, *args):
             pass

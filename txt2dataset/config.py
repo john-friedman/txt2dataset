@@ -1,0 +1,223 @@
+"""
+User-configurable settings for txt2dataset (persisted to disk).
+
+Example:
+    from txt2dataset import config
+    config.SET_REJECT_KEY("X")
+"""
+
+import json
+import os
+
+_DEFAULT_CONFIG_PATH = os.environ.get("TXT2DATASET_CONFIG_PATH") or os.path.join(
+    os.path.expanduser("~"), ".txt2dataset", "config.json"
+)
+
+
+class Config:
+    def __init__(self, config_path=_DEFAULT_CONFIG_PATH):
+        self.config_path = config_path
+        self._ensure_config_exists()
+
+    def _default_config(self):
+        return {
+            "hotkey_back": ["ArrowLeft", "A"],
+            "hotkey_forward": ["ArrowRight", "D"],
+            "hotkey_copy_extracted_rows": ["F"],
+            "hotkey_reject": ["R"],
+            "default_reject_file": "reject.json",
+        }
+
+    def _ensure_config_exists(self):
+        try:
+            config_dir = os.path.dirname(self.config_path)
+            if config_dir:
+                os.makedirs(config_dir, exist_ok=True)
+            if not os.path.exists(self.config_path):
+                self._save_config(self._default_config())
+        except OSError:
+            # Non-fatal: allow imports in read-only/restricted environments.
+            return
+
+    def _save_config(self, config):
+        try:
+            with open(self.config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+                f.write("\n")
+        except OSError as e:
+            raise OSError(
+                f"Failed to write txt2dataset config to {self.config_path}. "
+                "Set TXT2DATASET_CONFIG_PATH to a writable file path."
+            ) from e
+
+    def _load_config(self):
+        try:
+            with open(self.config_path, encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception:
+            config = {}
+
+        if not isinstance(config, dict):
+            config = {}
+
+        merged = self._default_config()
+        merged.update(config)
+        return merged
+
+    def _normalize_key(self, key):
+        if key is None:
+            raise ValueError("key must be a non-empty string")
+
+        key_str = str(key).strip()
+        if not key_str:
+            raise ValueError("key must be a non-empty string")
+
+        if len(key_str) == 1:
+            upper = key_str.upper()
+            if upper in {'"', "'", "\\", "\n", "\r", "\t"}:
+                raise ValueError("unsupported key character")
+            return upper
+
+        normalized = key_str.replace(" ", "")
+        normalized_upper = normalized.upper()
+        if normalized_upper in {"ARROWLEFT", "LEFT"}:
+            return "ArrowLeft"
+        if normalized_upper in {"ARROWRIGHT", "RIGHT"}:
+            return "ArrowRight"
+
+        raise ValueError(f"unsupported key: {key_str}")
+
+    def _normalize_key_list(self, keys):
+        if keys is None:
+            raise ValueError("keys must be a list or string")
+
+        if isinstance(keys, str):
+            iterable = [keys]
+        elif isinstance(keys, (list, tuple, set)):
+            iterable = list(keys)
+        else:
+            raise ValueError("keys must be a list or string")
+
+        if len(iterable) == 0:
+            return []
+
+        normalized = []
+        seen = set()
+        for key in iterable:
+            nk = self._normalize_key(key)
+            if nk not in seen:
+                normalized.append(nk)
+                seen.add(nk)
+
+        return normalized
+
+    def set_back_key(self, keys):
+        config = self._load_config()
+        if isinstance(keys, str):
+            keys = ["ArrowLeft", keys]
+        config["hotkey_back"] = self._normalize_key_list(keys)
+        self._save_config(config)
+
+    def set_forward_key(self, keys):
+        config = self._load_config()
+        if isinstance(keys, str):
+            keys = ["ArrowRight", keys]
+        config["hotkey_forward"] = self._normalize_key_list(keys)
+        self._save_config(config)
+
+    def set_copy_extracted_rows_key(self, keys):
+        config = self._load_config()
+        config["hotkey_copy_extracted_rows"] = self._normalize_key_list(keys)
+        self._save_config(config)
+
+    def set_reject_key(self, keys):
+        config = self._load_config()
+        config["hotkey_reject"] = self._normalize_key_list(keys)
+        self._save_config(config)
+
+    def set_reject_file(self, path):
+        if path is None:
+            raise ValueError("path must be a non-empty string")
+        path_str = str(path).strip()
+        if not path_str:
+            raise ValueError("path must be a non-empty string")
+
+        config = self._load_config()
+        config["default_reject_file"] = path_str
+        self._save_config(config)
+
+    def get_back_key(self):
+        try:
+            raw = self._load_config().get("hotkey_back", ["ArrowLeft", "A"])
+            if isinstance(raw, str):
+                return self._normalize_key_list(["ArrowLeft", raw])
+            return self._normalize_key_list(raw)
+        except Exception:
+            return ["ArrowLeft", "A"]
+
+    def get_forward_key(self):
+        try:
+            raw = self._load_config().get("hotkey_forward", ["ArrowRight", "D"])
+            if isinstance(raw, str):
+                return self._normalize_key_list(["ArrowRight", raw])
+            return self._normalize_key_list(raw)
+        except Exception:
+            return ["ArrowRight", "D"]
+
+    def get_copy_extracted_rows_key(self):
+        try:
+            return self._normalize_key_list(self._load_config().get("hotkey_copy_extracted_rows", ["F"]))
+        except Exception:
+            return ["F"]
+
+    def get_reject_key(self):
+        try:
+            return self._normalize_key_list(self._load_config().get("hotkey_reject", ["R"]))
+        except Exception:
+            return ["R"]
+
+    def get_reject_file(self):
+        return str(self._load_config().get("default_reject_file", "reject.json")).strip() or "reject.json"
+
+
+CONFIG = Config()
+
+HOTKEY_BACK = CONFIG.get_back_key()
+HOTKEY_FORWARD = CONFIG.get_forward_key()
+HOTKEY_COPY_EXTRACTED_ROWS = CONFIG.get_copy_extracted_rows_key()
+HOTKEY_REJECT = CONFIG.get_reject_key()
+DEFAULT_REJECT_FILE = CONFIG.get_reject_file()
+
+
+def _refresh_globals():
+    global HOTKEY_BACK, HOTKEY_FORWARD, HOTKEY_COPY_EXTRACTED_ROWS, HOTKEY_REJECT, DEFAULT_REJECT_FILE
+    HOTKEY_BACK = CONFIG.get_back_key()
+    HOTKEY_FORWARD = CONFIG.get_forward_key()
+    HOTKEY_COPY_EXTRACTED_ROWS = CONFIG.get_copy_extracted_rows_key()
+    HOTKEY_REJECT = CONFIG.get_reject_key()
+    DEFAULT_REJECT_FILE = CONFIG.get_reject_file()
+
+
+def SET_BACK_KEY(key):
+    CONFIG.set_back_key(key)
+    _refresh_globals()
+
+
+def SET_FORWARD_KEY(key):
+    CONFIG.set_forward_key(key)
+    _refresh_globals()
+
+
+def SET_COPY_EXTRACTED_ROWS_KEY(key):
+    CONFIG.set_copy_extracted_rows_key(key)
+    _refresh_globals()
+
+
+def SET_REJECT_KEY(key):
+    CONFIG.set_reject_key(key)
+    _refresh_globals()
+
+
+def SET_REJECT_FILE(path):
+    CONFIG.set_reject_file(path)
+    _refresh_globals()
