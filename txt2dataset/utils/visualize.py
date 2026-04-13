@@ -30,6 +30,14 @@ def _reject_path(reject_file=None):
 
 
 def _load_rejects(path):
+    """Load rejected IDs from disk.
+
+    Supported formats:
+      - {"rejected_ids": [...]} (preferred)
+      - {"rejectedids": [...]} (legacy/typo-tolerant)
+      - [id, id, ...]
+      - [{"id": ...}, ...] (older reject.json format)
+    """
     if not path.exists():
         return []
 
@@ -38,36 +46,64 @@ def _load_rejects(path):
     except Exception:
         return []
 
-    return data if isinstance(data, list) else []
+    if isinstance(data, dict):
+        rejected_ids = data.get("rejected_ids")
+        if isinstance(rejected_ids, list):
+            return rejected_ids
+        rejected_ids = data.get("rejectedids")
+        if isinstance(rejected_ids, list):
+            return rejected_ids
+        return []
+
+    if isinstance(data, list):
+        rejected_ids = []
+        for item in data:
+            if item is None:
+                continue
+            if isinstance(item, dict):
+                if "id" in item and item.get("id") is not None:
+                    rejected_ids.append(item.get("id"))
+                continue
+            rejected_ids.append(item)
+        return rejected_ids
+
+    return []
 
 
-def _write_rejects(path, rejects):
+def _write_rejects(path, rejected_ids):
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp_path = path.with_name(path.name + ".tmp")
-    tmp_path.write_text(json.dumps(rejects, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    payload = {"rejected_ids": rejected_ids}
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     tmp_path.replace(path)
 
 
-def _save_reject(reject_record, reject_file=None):
+def _save_reject(reject_id, reject_file=None):
     path = _reject_path(reject_file)
-    rejects = _load_rejects(path)
+    rejected_ids = _load_rejects(path)
 
-    reject_id = reject_record.get("id")
-    existing = None
-    for item in rejects:
-        if item.get("id") == reject_id:
-            existing = item
-            break
+    unique_rejected_ids = []
+    for existing_id in rejected_ids:
+        if existing_id not in unique_rejected_ids:
+            unique_rejected_ids.append(existing_id)
+
+    if reject_id is None:
+        raise ValueError("reject_id is missing")
 
     action = "added"
-    if existing is not None:
-        existing.update(reject_record)
-        action = "updated"
+    if reject_id in unique_rejected_ids:
+        action = "already_present"
     else:
-        rejects.append(reject_record)
+        unique_rejected_ids.append(reject_id)
 
-    _write_rejects(path, rejects)
-    return {"ok": True, "file": str(path), "count": len(rejects), "action": action, "id": reject_id}
+    _write_rejects(path, unique_rejected_ids)
+    return {
+        "ok": True,
+        "file": str(path),
+        "count": len(unique_rejected_ids),
+        "action": action,
+        "id": reject_id,
+    }
 
 
 def _table(headers, rows, row_styles=None):
@@ -260,11 +296,14 @@ def _render_page(items, index, version):
     const HOTKEY_BACK = {_json_for_script(config.HOTKEY_BACK)};
     const HOTKEY_FORWARD = {_json_for_script(config.HOTKEY_FORWARD)};
     const HOTKEY_COPY_EXTRACTED_ROWS = {_json_for_script(config.HOTKEY_COPY_EXTRACTED_ROWS)};
+    const HOTKEY_COPY_ID = {_json_for_script(config.HOTKEY_COPY_ID)};
+    const HOTKEY_DOWNLOAD_EXTRACTED_ROWS = {_json_for_script(config.HOTKEY_DOWNLOAD_EXTRACTED_ROWS)};
     const HOTKEY_REJECT = {_json_for_script(config.HOTKEY_REJECT)};
 
     const PREV_URL = "/?row={prev_idx}";
     const NEXT_URL = "/?row={next_idx}";
     const CURRENT_ROW = {index};
+    const CURRENT_ID = {_json_for_script(item.get("id"))};
     const EXTRACTED_ROWS = {_json_for_script(item.get("extracted_rows", []))};
 
     const toastEl = document.getElementById("toast");
@@ -301,6 +340,34 @@ def _render_page(items, index, version):
             toast("COPIED EXTRACTED ROWS");
         }} catch (e) {{
             toast("COPY FAILED");
+        }}
+    }}
+
+    async function copyId() {{
+        const text = String(CURRENT_ID ?? "");
+        try {{
+            await copyText(text);
+            toast("COPIED ID");
+        }} catch (e) {{
+            toast("COPY FAILED");
+        }}
+    }}
+
+    async function exportCurrent() {{
+        try {{
+            const resp = await fetch("/export", {{
+                method: "POST",
+                headers: {{"Content-Type": "application/json"}},
+                body: JSON.stringify({{ row: CURRENT_ROW }}),
+            }});
+            if (!resp.ok) {{
+                throw new Error(await resp.text());
+            }}
+            const data = await resp.json();
+            toast("EXPORTED (" + data.file + ")");
+            setTimeout(() => {{ window.location.href = NEXT_URL; }}, 200);
+        }} catch (e) {{
+            toast("EXPORT FAILED");
         }}
     }}
 
@@ -345,6 +412,16 @@ def _render_page(items, index, version):
             copyExtractedRows();
             return;
         }}
+        if (HOTKEY_COPY_ID.includes(key)) {{
+            e.preventDefault();
+            copyId();
+            return;
+        }}
+        if (HOTKEY_DOWNLOAD_EXTRACTED_ROWS.includes(key)) {{
+            e.preventDefault();
+            exportCurrent();
+            return;
+        }}
         if (HOTKEY_REJECT.includes(key)) {{
             e.preventDefault();
             rejectCurrent();
@@ -384,7 +461,6 @@ def visualize(spotcheck_results, port=8000):
         print("Nothing to visualize.")
         return
 
-    # Shut down previous server if running
     if _current_server is not None:
         _current_server.shutdown()
         _current_server.server_close()
@@ -394,7 +470,6 @@ def visualize(spotcheck_results, port=8000):
     _version += 1
     current_version = _version
 
-    # Sort errors first
     items = sorted(spotcheck_results, key=lambda x: x.get("correct", True))
 
     class Handler(BaseHTTPRequestHandler):
@@ -423,7 +498,7 @@ def visualize(spotcheck_results, port=8000):
         def do_POST(self):
             parsed_url = urlparse(self.path)
 
-            if parsed_url.path != "/reject":
+            if parsed_url.path not in {"/reject", "/export"}:
                 self.send_response(404)
                 self.end_headers()
                 return
@@ -447,18 +522,11 @@ def visualize(spotcheck_results, port=8000):
                 row = 0
 
             item = items[row]
-            record = {
-                "id": item.get("id"),
-                "rejected_at": datetime.now(timezone.utc).isoformat(),
-                "correct": item.get("correct", True),
-                "verdict": item.get("verdict"),
-                "desc": item.get("desc", ""),
-                "extracted_rows": item.get("extracted_rows", []),
-                "context": item.get("context", ""),
-            }
-
             try:
-                result = _save_reject(record)
+                if parsed_url.path == "/reject":
+                    result = _save_reject(item.get("id"))
+                else:
+                    result = _save_reject(item.get("id"), reject_file=config.DEFAULT_REJECT_ID_FILE)
                 self.send_response(200)
                 self.send_header("Content-Type", "application/json; charset=utf-8")
                 self.end_headers()

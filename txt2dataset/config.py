@@ -24,8 +24,11 @@ class Config:
             "hotkey_back": ["ArrowLeft", "A"],
             "hotkey_forward": ["ArrowRight", "D"],
             "hotkey_copy_extracted_rows": ["F"],
+            "hotkey_copy_id": ["P"],
+            "hotkey_download_extracted_rows": ["O"],
             "hotkey_reject": ["R"],
             "default_reject_file": "reject.json",
+            "default_reject_id_file": "reject_id.json",
         }
 
     def _ensure_config_exists(self):
@@ -130,6 +133,16 @@ class Config:
         config["hotkey_copy_extracted_rows"] = self._normalize_key_list(keys)
         self._save_config(config)
 
+    def set_copy_id_key(self, keys):
+        config = self._load_config()
+        config["hotkey_copy_id"] = self._normalize_key_list(keys)
+        self._save_config(config)
+
+    def set_download_extracted_rows_key(self, keys):
+        config = self._load_config()
+        config["hotkey_download_extracted_rows"] = self._normalize_key_list(keys)
+        self._save_config(config)
+
     def set_reject_key(self, keys):
         config = self._load_config()
         config["hotkey_reject"] = self._normalize_key_list(keys)
@@ -170,6 +183,18 @@ class Config:
         except Exception:
             return ["F"]
 
+    def get_copy_id_key(self):
+        try:
+            return self._normalize_key_list(self._load_config().get("hotkey_copy_id", ["P"]))
+        except Exception:
+            return ["P"]
+
+    def get_download_extracted_rows_key(self):
+        try:
+            return self._normalize_key_list(self._load_config().get("hotkey_download_extracted_rows", ["O"]))
+        except Exception:
+            return ["O"]
+
     def get_reject_key(self):
         try:
             return self._normalize_key_list(self._load_config().get("hotkey_reject", ["R"]))
@@ -178,6 +203,19 @@ class Config:
 
     def get_reject_file(self):
         return str(self._load_config().get("default_reject_file", "reject.json")).strip() or "reject.json"
+    
+    def get_reject_id_file(self):
+        return str(self._load_config().get("default_reject_id_file", "reject_id.json")).strip() or "reject_id.json"
+
+    def set_reject_id_file(self, path):
+        if path is None:
+            raise ValueError("path must be a non-empty string")
+        path_str = str(path).strip()
+        if not path_str:
+            raise ValueError("path must be a non-empty string")
+        config = self._load_config()
+        config["default_reject_id_file"] = path_str
+        self._save_config(config)
 
 
 CONFIG = Config()
@@ -185,19 +223,27 @@ CONFIG = Config()
 HOTKEY_BACK = CONFIG.get_back_key()
 HOTKEY_FORWARD = CONFIG.get_forward_key()
 HOTKEY_COPY_EXTRACTED_ROWS = CONFIG.get_copy_extracted_rows_key()
+HOTKEY_COPY_ID = CONFIG.get_copy_id_key()
+HOTKEY_DOWNLOAD_EXTRACTED_ROWS = CONFIG.get_download_extracted_rows_key()
 HOTKEY_REJECT = CONFIG.get_reject_key()
 DEFAULT_REJECT_FILE = CONFIG.get_reject_file()
-
+DEFAULT_REJECT_ID_FILE = CONFIG.get_reject_id_file()
 
 def _refresh_globals():
-    global HOTKEY_BACK, HOTKEY_FORWARD, HOTKEY_COPY_EXTRACTED_ROWS, HOTKEY_REJECT, DEFAULT_REJECT_FILE
+    global HOTKEY_BACK, HOTKEY_FORWARD, HOTKEY_COPY_EXTRACTED_ROWS, HOTKEY_COPY_ID, HOTKEY_DOWNLOAD_EXTRACTED_ROWS, HOTKEY_REJECT, DEFAULT_REJECT_FILE, DEFAULT_REJECT_ID_FILE
     HOTKEY_BACK = CONFIG.get_back_key()
     HOTKEY_FORWARD = CONFIG.get_forward_key()
     HOTKEY_COPY_EXTRACTED_ROWS = CONFIG.get_copy_extracted_rows_key()
+    HOTKEY_COPY_ID = CONFIG.get_copy_id_key()
+    HOTKEY_DOWNLOAD_EXTRACTED_ROWS = CONFIG.get_download_extracted_rows_key()
     HOTKEY_REJECT = CONFIG.get_reject_key()
     DEFAULT_REJECT_FILE = CONFIG.get_reject_file()
+    DEFAULT_REJECT_ID_FILE = CONFIG.get_reject_id_file()
 
-
+def SET_REJECT_ID_FILE(path):
+    CONFIG.set_reject_id_file(path)
+    _refresh_globals()
+    
 def SET_BACK_KEY(key):
     CONFIG.set_back_key(key)
     _refresh_globals()
@@ -210,6 +256,16 @@ def SET_FORWARD_KEY(key):
 
 def SET_COPY_EXTRACTED_ROWS_KEY(key):
     CONFIG.set_copy_extracted_rows_key(key)
+    _refresh_globals()
+
+
+def SET_COPY_ID_KEY(key):
+    CONFIG.set_copy_id_key(key)
+    _refresh_globals()
+
+
+def SET_DOWNLOAD_EXTRACTED_ROWS_KEY(key):
+    CONFIG.set_download_extracted_rows_key(key)
     _refresh_globals()
 
 

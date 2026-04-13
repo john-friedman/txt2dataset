@@ -7,7 +7,7 @@ with open(os.path.join(os.path.dirname(__file__), 'readme.md'), encoding='utf-8'
 
 setup(
     name="txt2dataset",
-    version="0.6.1",
+    version="0.6.2",
     packages=find_packages(),
     install_requires=[
         "tqdm", "aiohttp"

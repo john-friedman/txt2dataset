@@ -100,7 +100,7 @@ Result
 
 Use `spotcheck_visualize()` for an interactive visual method. 
 
-Hotkeys: `LEFT/RIGHT` (or `A/D`) to navigate, `F` to copy extracted rows (JSON) to clipboard, `R` to reject and append to `reject.json` (configurable).
+Hotkeys: `LEFT/RIGHT` (or `A/D`) to navigate, `F` to copy extracted rows (JSON) to clipboard, `R` to reject and append to `reject.json`,  `P` to copy the current ID, `O` to reject and append to `reject_id.json` (configurable).
 
 Customize hotkeys via `txt2dataset.config` (e.g. `from txt2dataset import config; config.SET_REJECT_KEY("X")`) before calling `spotcheck_visualize()`. Settings persist in `~/.txt2dataset/config.json` (override with `TXT2DATASET_CONFIG_PATH`).
 
@@ -114,6 +114,8 @@ from txt2dataset import config
 config.SET_BACK_KEY(["ArrowLeft", "J"])
 config.SET_FORWARD_KEY(["ArrowRight", "K"])
 config.SET_COPY_EXTRACTED_ROWS_KEY(["F", "C"])
+config.SET_COPY_ID_KEY(["P"])
+config.SET_DOWNLOAD_EXTRACTED_ROWS_KEY(["O"])
 config.SET_REJECT_KEY(["R", "X"])
 config.SET_REJECT_FILE("my_rejects.json")
 ```
