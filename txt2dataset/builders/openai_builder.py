@@ -3,6 +3,7 @@ import os
 from ..utils.builder_rate_limits import process_payloads, ProviderConfig
 from ..utils.utils import pydantic_to_json_schema
 from ..utils.visualize import visualize
+from ..utils.spotcheck_prompt import build_check_prompt, CHECK_SCHEMA
 import json
 import random
 
@@ -162,19 +163,6 @@ class OpenAIAPIBuilder:
         sampled_ids = random.sample(result_ids, sample_size)
         entries_by_id = {entry["id"]: entry["context"] for entry in entries}
 
-        check_schema = {
-            "type": "object",
-            "properties": {
-                "verdict": {
-                    "type": "string",
-                    "enum": ["correct", "fabricated", "debatable"]
-                },
-                "desc": {"type": "string"},
-            },
-            "required": ["verdict", "desc"],
-            "additionalProperties": False,
-        }
-
         spotcheck_entries = []
         payloads = []
         for row_id in sampled_ids:
@@ -182,16 +170,11 @@ class OpenAIAPIBuilder:
             rows = grouped_results.get(row_id, [])
             rows_for_check = [{k: v for k, v in row.items() if k != "id"} for row in rows]
             rows_json = json.dumps(rows_for_check, ensure_ascii=False)
-            check_prompt = (
-                "Here is a source document and some data extracted from it.\n\n"
-                f"Source text:\n{context}\n\n"
-                f"Extracted data:\n{rows_json}\n\n"
-                "Does the extracted data look right based on the document? "
-                "Only flag it as wrong if something is egregiously wrong — meaning "
-                "the extracted value cannot be found in or inferred from the source text with some generosity.\n\n"
-                "Return JSON with:\n"
-                "- verdict: 'correct', 'fabricated', or 'debatable'\n"
-                "- desc: brief explanation\n"
+            check_prompt = build_check_prompt(
+                extraction_prompt=prompt,
+                context=context,
+                rows_json=rows_json,
+                n_rows=len(rows_for_check),
             )
 
             spotcheck_entries.append({"id": row_id, "context": context})
@@ -206,7 +189,7 @@ class OpenAIAPIBuilder:
                         "json_schema": {
                             "name": "spotcheck_verdict",
                             "strict": True,
-                            "schema": check_schema,
+                            "schema": CHECK_SCHEMA,
                         },
                     },
                 }
@@ -246,7 +229,7 @@ class OpenAIAPIBuilder:
                 item = {
                     "id": row_id,
                     "verdict": check["verdict"],
-                    "correct": check["verdict"] != "fabricated",
+                    "correct": check["verdict"] == "correct",
                     "desc": check.get("desc", ""),
                 }
 

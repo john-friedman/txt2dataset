@@ -144,9 +144,16 @@ def _render_context(context):
 
 def _render_verdict(item):
     """Render the spotcheck verdict as a small table."""
-    passed = item["correct"]
-    icon = '✅' if passed else '❌'
-    style = 'pass-row' if passed else 'fail-row'
+    verdict = item.get("verdict", "")
+    if verdict == "correct":
+        icon = '✅'
+        style = 'pass-row'
+    elif verdict == "debatable":
+        icon = '⚠️'
+        style = 'warn-row'
+    else:
+        icon = '❌'
+        style = 'fail-row'
     rows = [
         [icon, html.escape(item.get("desc", "") or "—")],
     ]
@@ -154,17 +161,22 @@ def _render_verdict(item):
 
 
 def _render_summary(items):
-    """Render a summary header: Correct / Error counts and percentage."""
+    """Render a summary header: Correct / Debatable / Error counts."""
     total = len(items)
-    errors = sum(1 for x in items if not x.get("correct", True))
-    correct = total - errors
+    correct = sum(1 for x in items if x.get("verdict") == "correct")
+    debatable = sum(1 for x in items if x.get("verdict") == "debatable")
+    errors = total - correct - debatable
     pct = (correct / total * 100) if total else 0
+    parts = [
+        f'<span class="summary-correct">Correct: {correct}</span>',
+        f'<span class="summary-warn">Review: {debatable}</span>' if debatable else '',
+        f'<span class="summary-error">Error: {errors}</span>',
+        f'<span class="summary-pct">{pct:.0f}% pass rate</span>',
+    ]
     return (
         f'<div class="summary">'
-        f'<span class="summary-correct">Correct: {correct}</span>'
-        f'<span class="summary-error">Error: {errors}</span>'
-        f'<span class="summary-pct">{pct:.0f}% pass rate</span>'
-        f'</div>'
+        + ''.join(p for p in parts if p)
+        + f'</div>'
     )
 
 
@@ -219,6 +231,7 @@ def _render_page(items, index, version):
         font-weight: 600;
     }}
     .summary-correct {{ color: #2e7d32; }}
+    .summary-warn {{ color: #f57f17; }}
     .summary-error {{ color: #c62828; }}
     .summary-pct {{ color: #555; margin-left: auto; }}
     table {{
@@ -238,6 +251,7 @@ def _render_page(items, index, version):
         font-weight: 600;
     }}
     .pass-row {{ background: #e8f5e9; }}
+    .warn-row {{ background: #fff8e1; }}
     .fail-row {{ background: #ffebee; }}
     pre {{
         background: #f5f5f5;
@@ -470,7 +484,9 @@ def visualize(spotcheck_results, port=8000):
     _version += 1
     current_version = _version
 
-    items = sorted(spotcheck_results, key=lambda x: x.get("correct", True))
+    # Sort: fabricated first, then debatable, then correct
+    _verdict_order = {"fabricated": 0, "debatable": 1, "correct": 2}
+    items = sorted(spotcheck_results, key=lambda x: _verdict_order.get(x.get("verdict", "correct"), 2))
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
