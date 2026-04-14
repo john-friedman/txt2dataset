@@ -21,7 +21,7 @@ Only flag a value as wrong if something is egregiously wrong — meaning
 the extracted value cannot be found in or inferred from the source
 text with some generosity.
 
-null values are correct when the source does not mention that field — do not flag null as debatable or fabricated simply because the field is absent from the source.
+null values are correct when the source does not mention that field — do not flag null as debatable or fabricated simply because the field is absent from the source. This applies especially to date fields: if the source provides no announcement date, null announcement date fields are correct, not fabricated. When in doubt about a null, mark it correct.
 
 Return JSON as a list of objects, one per extracted row, each with:
 - id: the row_index of the extracted row
