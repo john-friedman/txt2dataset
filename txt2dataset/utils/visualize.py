@@ -2,10 +2,10 @@ import html
 import json
 import threading
 import webbrowser
-from datetime import datetime, timezone
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+from collections import Counter
 
 from .. import config
 
@@ -111,12 +111,28 @@ def _table(headers, rows, row_styles=None):
     out = '<table>'
     out += '<tr>' + ''.join(f'<th>{h}</th>' for h in headers) + '</tr>'
     for i, row in enumerate(rows):
-        cls = ''
+        style = ''
         if row_styles and i < len(row_styles) and row_styles[i]:
-            cls = f' class="{row_styles[i]}"'
-        out += f'<tr{cls}>' + ''.join(f'<td>{cell}</td>' for cell in row) + '</tr>'
+            style = f' style="background:{row_styles[i]};"'
+        out += f'<tr{style}>' + ''.join(f'<td>{cell}</td>' for cell in row) + '</tr>'
     out += '</table>'
     return out
+
+
+def _item_is_fully_correct(item):
+    fields = item.get("fields") or []
+    if not fields:
+        return True
+    return all(f.get("verdict") == "correct" for f in fields)
+
+
+def _item_verdict_counts(item):
+    counts = Counter()
+    for f in item.get("fields") or []:
+        v = f.get("verdict", "")
+        if v != "correct":
+            counts[v] += 1
+    return counts
 
 
 def _render_extracted_rows(extracted_rows):
@@ -143,28 +159,47 @@ def _render_context(context):
 
 
 def _render_verdict(item):
-    """Render the spotcheck verdict as a small table."""
-    passed = item["correct"]
-    icon = '✅' if passed else '❌'
-    style = 'pass-row' if passed else 'fail-row'
-    rows = [
-        [icon, html.escape(item.get("desc", "") or "—")],
-    ]
-    return '<h3>Spot Check</h3>' + _table(["Result", "Description"], rows, row_styles=[style])
+    fields = item.get("fields") or []
+    if not fields:
+        return '<h3>Spot Check</h3><p>No field verdicts.</p>'
+
+    verdict_colors = config.CONFIG.get_spot_check_verdict_colors()
+    rows = []
+    row_styles = []
+    for field_data in fields:
+        verdict = field_data.get("verdict", "")
+        rows.append([
+            f'<b>{html.escape(field_data.get("name", ""))}</b>',
+            html.escape(verdict),
+            html.escape(field_data.get("desc", "") or "—"),
+        ])
+        row_styles.append(verdict_colors.get(verdict, ""))
+
+    return '<h3>Spot Check</h3>' + _table(["Field", "Verdict", "Description"], rows, row_styles=row_styles)
 
 
 def _render_summary(items):
-    """Render a summary header: Correct / Error counts and percentage."""
+    """Render summary: fully correct files vs total, plus counts of each non-correct verdict across all fields."""
     total = len(items)
-    errors = sum(1 for x in items if not x.get("correct", True))
-    correct = total - errors
-    pct = (correct / total * 100) if total else 0
+    fully_correct = sum(1 for x in items if _item_is_fully_correct(x))
+    pct = (fully_correct / total * 100) if total else 0
+
+    # Aggregate non-correct verdict counts across all files and fields
+    totals = Counter()
+    for item in items:
+        totals.update(_item_verdict_counts(item))
+
+    error_parts = ' &nbsp;·&nbsp; '.join(
+        f'<span class="summary-verdict">{html.escape(verdict)}: {count}</span>'
+        for verdict, count in sorted(totals.items())
+    )
+
     return (
         f'<div class="summary">'
-        f'<span class="summary-correct">Correct: {correct}</span>'
-        f'<span class="summary-error">Error: {errors}</span>'
+        f'<span class="summary-correct">Correct files: {fully_correct}/{total}</span>'
         f'<span class="summary-pct">{pct:.0f}% pass rate</span>'
-        f'</div>'
+        + (f'<span class="summary-errors">{error_parts}</span>' if error_parts else '')
+        + f'</div>'
     )
 
 
@@ -210,6 +245,7 @@ def _render_page(items, index, version):
         display: flex;
         gap: 20px;
         align-items: center;
+        flex-wrap: wrap;
         padding: 10px 14px;
         background: #fafafa;
         border: 1px solid #ddd;
@@ -219,8 +255,9 @@ def _render_page(items, index, version):
         font-weight: 600;
     }}
     .summary-correct {{ color: #2e7d32; }}
-    .summary-error {{ color: #c62828; }}
     .summary-pct {{ color: #555; margin-left: auto; }}
+    .summary-errors {{ font-size: 13px; font-weight: 400; color: #555; }}
+    .summary-verdict {{ margin-right: 4px; }}
     table {{
         width: 100%;
         border-collapse: collapse;
@@ -237,8 +274,6 @@ def _render_page(items, index, version):
         background: #f5f5f5;
         font-weight: 600;
     }}
-    .pass-row {{ background: #e8f5e9; }}
-    .fail-row {{ background: #ffebee; }}
     pre {{
         background: #f5f5f5;
         padding: 10px;
@@ -452,7 +487,7 @@ def visualize(spotcheck_results, port=8000):
 
     Args:
         spotcheck_results: list of dicts from spotcheck(..., return_details=True).
-            Each dict has: id, correct, desc, extracted_rows, context
+            Each dict has: id, fields, extracted_rows, context
         port: port to serve on (default 8000)
     """
     global _current_server, _current_thread, _version
@@ -470,7 +505,15 @@ def visualize(spotcheck_results, port=8000):
     _version += 1
     current_version = _version
 
-    items = sorted(spotcheck_results, key=lambda x: x.get("correct", True))
+    # Sort: fully incorrect files first, then partial, then fully correct
+    def _sort_key(item):
+        if _item_is_fully_correct(item):
+            return 2
+        counts = _item_verdict_counts(item)
+        return 0 if counts else 1
+
+    items = sorted(spotcheck_results, key=_sort_key)
+    print(items)
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):

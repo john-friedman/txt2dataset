@@ -13,6 +13,53 @@ _DEFAULT_CONFIG_PATH = os.environ.get("TXT2DATASET_CONFIG_PATH") or os.path.join
     os.path.expanduser("~"), ".txt2dataset", "config.json"
 )
 
+DEFAULT_SPOT_CHECK_PROMPT = """
+Here is a source document and some data extracted from it.
+
+For each extracted row, check each field value against the source document.
+Only flag a value as wrong if something is egregiously wrong — meaning
+the extracted value cannot be found in or inferred from the source
+text with some generosity.
+
+null values are correct when the source does not mention that field — do not flag null as debatable or fabricated simply because the field is absent from the source.
+
+Return JSON as a list of objects, one per extracted row, each with:
+- id: the row_index of the extracted row
+- fields: array of objects with:
+  - name: field name
+  - verdict: 'correct', 'fabricated', or 'debatable'
+  - desc: brief explanation of why
+"""
+
+DEFAULT_SPOT_CHECK_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer"},
+            "fields": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "verdict": {"type": "string"},
+                        "desc": {"type": "string"},
+                    },
+                    "required": ["name", "verdict", "desc"],
+                },
+            },
+        },
+        "required": ["id", "fields"],
+    },
+}
+
+DEFAULT_SPOT_CHECK_VERDICT_COLORS = {
+    "correct": "#e8f5e9",
+    "fabricated": "#ffebee",
+    "debatable": "#fff8e1",
+}
+
 
 class Config:
     def __init__(self, config_path=_DEFAULT_CONFIG_PATH):
@@ -29,6 +76,9 @@ class Config:
             "hotkey_reject": ["R"],
             "default_reject_file": "reject.json",
             "default_reject_id_file": "reject_id.json",
+            "spot_check_prompt": DEFAULT_SPOT_CHECK_PROMPT,
+            "spot_check_schema": DEFAULT_SPOT_CHECK_SCHEMA,
+            "spot_check_verdict_colors": DEFAULT_SPOT_CHECK_VERDICT_COLORS,
         }
 
     def _ensure_config_exists(self):
@@ -39,7 +89,6 @@ class Config:
             if not os.path.exists(self.config_path):
                 self._save_config(self._default_config())
         except OSError:
-            # Non-fatal: allow imports in read-only/restricted environments.
             return
 
     def _save_config(self, config):
@@ -154,9 +203,39 @@ class Config:
         path_str = str(path).strip()
         if not path_str:
             raise ValueError("path must be a non-empty string")
-
         config = self._load_config()
         config["default_reject_file"] = path_str
+        self._save_config(config)
+
+    def set_reject_id_file(self, path):
+        if path is None:
+            raise ValueError("path must be a non-empty string")
+        path_str = str(path).strip()
+        if not path_str:
+            raise ValueError("path must be a non-empty string")
+        config = self._load_config()
+        config["default_reject_id_file"] = path_str
+        self._save_config(config)
+
+    def set_spot_check_prompt(self, prompt: str):
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("prompt must be a non-empty string")
+        config = self._load_config()
+        config["spot_check_prompt"] = prompt
+        self._save_config(config)
+
+    def set_spot_check_schema(self, schema: dict):
+        if not isinstance(schema, dict):
+            raise ValueError("schema must be a dict")
+        config = self._load_config()
+        config["spot_check_schema"] = schema
+        self._save_config(config)
+
+    def set_spot_check_verdict_colors(self, colors: dict):
+        if not isinstance(colors, dict):
+            raise ValueError("colors must be a dict mapping verdict strings to CSS color strings")
+        config = self._load_config()
+        config["spot_check_verdict_colors"] = colors
         self._save_config(config)
 
     def get_back_key(self):
@@ -203,19 +282,18 @@ class Config:
 
     def get_reject_file(self):
         return str(self._load_config().get("default_reject_file", "reject.json")).strip() or "reject.json"
-    
+
     def get_reject_id_file(self):
         return str(self._load_config().get("default_reject_id_file", "reject_id.json")).strip() or "reject_id.json"
 
-    def set_reject_id_file(self, path):
-        if path is None:
-            raise ValueError("path must be a non-empty string")
-        path_str = str(path).strip()
-        if not path_str:
-            raise ValueError("path must be a non-empty string")
-        config = self._load_config()
-        config["default_reject_id_file"] = path_str
-        self._save_config(config)
+    def get_spot_check_prompt(self):
+        return self._load_config().get("spot_check_prompt", DEFAULT_SPOT_CHECK_PROMPT)
+
+    def get_spot_check_schema(self):
+        return self._load_config().get("spot_check_schema", DEFAULT_SPOT_CHECK_SCHEMA)
+
+    def get_spot_check_verdict_colors(self):
+        return self._load_config().get("spot_check_verdict_colors", DEFAULT_SPOT_CHECK_VERDICT_COLORS)
 
 
 CONFIG = Config()
@@ -229,6 +307,7 @@ HOTKEY_REJECT = CONFIG.get_reject_key()
 DEFAULT_REJECT_FILE = CONFIG.get_reject_file()
 DEFAULT_REJECT_ID_FILE = CONFIG.get_reject_id_file()
 
+
 def _refresh_globals():
     global HOTKEY_BACK, HOTKEY_FORWARD, HOTKEY_COPY_EXTRACTED_ROWS, HOTKEY_COPY_ID, HOTKEY_DOWNLOAD_EXTRACTED_ROWS, HOTKEY_REJECT, DEFAULT_REJECT_FILE, DEFAULT_REJECT_ID_FILE
     HOTKEY_BACK = CONFIG.get_back_key()
@@ -240,10 +319,7 @@ def _refresh_globals():
     DEFAULT_REJECT_FILE = CONFIG.get_reject_file()
     DEFAULT_REJECT_ID_FILE = CONFIG.get_reject_id_file()
 
-def SET_REJECT_ID_FILE(path):
-    CONFIG.set_reject_id_file(path)
-    _refresh_globals()
-    
+
 def SET_BACK_KEY(key):
     CONFIG.set_back_key(key)
     _refresh_globals()
@@ -277,3 +353,25 @@ def SET_REJECT_KEY(key):
 def SET_REJECT_FILE(path):
     CONFIG.set_reject_file(path)
     _refresh_globals()
+
+
+def SET_REJECT_ID_FILE(path):
+    CONFIG.set_reject_id_file(path)
+    _refresh_globals()
+
+
+def SET_SPOT_CHECK_PROMPT(prompt: str):
+    CONFIG.set_spot_check_prompt(prompt)
+
+
+def SET_SPOT_CHECK_SCHEMA(schema: dict):
+    CONFIG.set_spot_check_schema(schema)
+
+
+def SET_SPOT_CHECK_VERDICT_COLORS(colors: dict):
+    CONFIG.set_spot_check_verdict_colors(colors)
+
+
+def build_spot_check_prompt(context: str, rows_json: str) -> str:
+    prompt = CONFIG.get_spot_check_prompt()
+    return f"{prompt}\nSource text:\n{context}\n\nExtracted data:\n{rows_json}"

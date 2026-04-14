@@ -43,12 +43,12 @@ if errors:
     print("Errors:", errors)
 print(results)
 
-spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model="google/gemini-2.5-flash",
+spotchecks = builder.spotcheck(schema=DividendExtraction, model="google/gemini-2.5-flash",
                entries=entries, results=results, sample_size=10,
                rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 print(spotchecks)
 
-builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model="google/gemini-2.5-flash",
+builder.spotcheck_visualize(schema=DividendExtraction, model="google/gemini-2.5-flash",
                entries=entries, results=results, sample_size=10,
                rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 

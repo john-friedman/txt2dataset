@@ -54,11 +54,11 @@ results, errors = builder.build(prompt=prompt, schema=DividendExtraction, model=
                entries=entries, rpm=500, tpm=200_000, rpm_threshold=0.75, tpm_threshold=0.75)
 print(results)
 
-spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model=AZURE_DEPLOYMENT, entries=entries,
+spotchecks = builder.spotcheck(schema=DividendExtraction, model=AZURE_DEPLOYMENT, entries=entries,
                results=results, sample_size=10, rpm=500, tpm=200_000, rpm_threshold=0.75, tpm_threshold=0.75)
 print(spotchecks)
 
-builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model=AZURE_DEPLOYMENT, entries=entries,
+builder.spotcheck_visualize(schema=DividendExtraction, model=AZURE_DEPLOYMENT, entries=entries,
                results=results, sample_size=10, rpm=500, tpm=200_000, rpm_threshold=0.75, tpm_threshold=0.75)
 
 input("Press Enter to stop the visualizer...")

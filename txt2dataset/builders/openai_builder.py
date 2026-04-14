@@ -3,6 +3,7 @@ import os
 from ..utils.builder_rate_limits import process_payloads, ProviderConfig
 from ..utils.utils import pydantic_to_json_schema
 from ..utils.visualize import visualize
+from ..config import CONFIG, build_spot_check_prompt
 import json
 import random
 
@@ -38,7 +39,6 @@ class OpenAIAPIBuilder:
         self.endpoint = endpoint or "https://api.openai.com/v1/chat/completions"
         self.auth_header = auth_header
 
-        # Build the provider config based on auth style
         if self.auth_header == "Authorization":
             auth_mode = "bearer"
         else:
@@ -52,14 +52,14 @@ class OpenAIAPIBuilder:
         self.input_tokens_used_session = 0
         self.output_tokens_used_session = 0
 
-    def _make_schema_config(self, schema):
+    def _make_schema_config(self, schema, name="extraction_schema"):
         """Build the OpenAI response_format block for structured output."""
-        json_schema = pydantic_to_json_schema(schema)
+        json_schema = pydantic_to_json_schema(schema) if not isinstance(schema, dict) else schema
         self._add_additional_properties_false(json_schema)
         return {
             "type": "json_schema",
             "json_schema": {
-                "name": "extraction_schema",
+                "name": name,
                 "strict": True,
                 "schema": json_schema,
             },
@@ -148,7 +148,7 @@ class OpenAIAPIBuilder:
 
         return results, errors
 
-    def spotcheck(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, return_details=False):
+    def spotcheck(self, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, return_details=False):
         grouped_results = {}
         for row in results:
             row_id = row.get("id")
@@ -165,34 +165,21 @@ class OpenAIAPIBuilder:
         check_schema = {
             "type": "object",
             "properties": {
-                "verdict": {
-                    "type": "string",
-                    "enum": ["correct", "fabricated", "debatable"]
-                },
-                "desc": {"type": "string"},
+                "rows": CONFIG.get_spot_check_schema()
             },
-            "required": ["verdict", "desc"],
+            "required": ["rows"],
             "additionalProperties": False,
         }
+        response_format = self._make_schema_config(check_schema, name="spotcheck_schema")
 
         spotcheck_entries = []
         payloads = []
         for row_id in sampled_ids:
             context = entries_by_id.get(row_id, "")
             rows = grouped_results.get(row_id, [])
-            rows_for_check = [{k: v for k, v in row.items() if k != "id"} for row in rows]
+            rows_for_check = [{"row_index": i, **{k: v for k, v in row.items() if k != "id"}} for i, row in enumerate(rows)]
             rows_json = json.dumps(rows_for_check, ensure_ascii=False)
-            check_prompt = (
-                "Here is a source document and some data extracted from it.\n\n"
-                f"Source text:\n{context}\n\n"
-                f"Extracted data:\n{rows_json}\n\n"
-                "Does the extracted data look right based on the document? "
-                "Only flag it as wrong if something is egregiously wrong — meaning "
-                "the extracted value cannot be found in or inferred from the source text with some generosity.\n\n"
-                "Return JSON with:\n"
-                "- verdict: 'correct', 'fabricated', or 'debatable'\n"
-                "- desc: brief explanation\n"
-            )
+            check_prompt = build_spot_check_prompt(context=context, rows_json=rows_json)
 
             spotcheck_entries.append({"id": row_id, "context": context})
             payloads.append(
@@ -201,14 +188,7 @@ class OpenAIAPIBuilder:
                     "messages": [
                         {"role": "user", "content": check_prompt}
                     ],
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "spotcheck_verdict",
-                            "strict": True,
-                            "schema": check_schema,
-                        },
-                    },
+                    "response_format": response_format,
                 }
             )
 
@@ -243,11 +223,13 @@ class OpenAIAPIBuilder:
 
                 row_id = sampled_ids[i]
 
+                all_fields = []
+                for c in check["rows"]:
+                    all_fields.extend(c.get("fields", []))
+
                 item = {
                     "id": row_id,
-                    "verdict": check["verdict"],
-                    "correct": check["verdict"] != "fabricated",
-                    "desc": check.get("desc", ""),
+                    "fields": all_fields,
                 }
 
                 if return_details:
@@ -258,13 +240,12 @@ class OpenAIAPIBuilder:
                 spotcheck_results.append(item)
             except Exception as e:
                 errors.append({"id": r.get("id", "unknown") if r else "unknown", "error": str(e)})
-
+        
         return spotcheck_results
 
-    def spotcheck_visualize(self, prompt, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, port=8000):
+    def spotcheck_visualize(self, schema, model, entries, results, sample_size, rpm, tpm, rpm_threshold=0.75, tpm_threshold=0.75, port=8000):
         """Run spotcheck with details, then launch a local browser to inspect results."""
         spotcheck_results = self.spotcheck(
-            prompt=prompt,
             schema=schema,
             model=model,
             entries=entries,

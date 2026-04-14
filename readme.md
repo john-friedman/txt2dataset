@@ -66,7 +66,7 @@ Choose the requests per minute that work for your api key and model.
 from txt2dataset import GeminiAPIBuilder
 
 builder = GeminiAPIBuilder()
-results = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
+results, errors = builder.build(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash-lite",
                entries=entries, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 ```
 
@@ -84,23 +84,74 @@ Result
 Use `spotcheck()` to check if results look good. Highly recommended to use a more powerful model for spot checking, and cheap model for dataset generation.
 
 ```python
-
-spotchecks = builder.spotcheck(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
-               results=results, sample_size = 10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+spotchecks = builder.spotcheck(schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
+               results=results, sample_size=10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 ```
 
-Result
+Returns a per-field verdict for each sampled entry:
 
-| id | correct | desc |
-|----|---------|------|
-| 1  | true    |      |
-| 0  | false   | The `stock_type_specified` for the $0.15 dividend is incorrectly listed as `'quarterly'`; the source text does not explicitly state it for this particular dividend, so it should be `null`. |
+```python
+[
+  {'id': 0, 'fields': [
+    {'name': 'dividend_per_share', 'verdict': 'correct', 'desc': '$0.18 explicitly stated in source.'},
+    {'name': 'stock_type_specified', 'verdict': 'fabricated', 'desc': "'quarterly' not stated for this dividend."}
+  ]},
+  {'id': 1, 'fields': [
+    {'name': 'dividend_per_share', 'verdict': 'correct', 'desc': '$0.25 explicitly stated.'},
+  ]}
+]
+```
+
+Customize the spot check prompt and verdict types via config:
+
+```python
+from txt2dataset import config
+
+config.SET_SPOT_CHECK_PROMPT("""Here is a source document and some data extracted from it.
+
+For each extracted row, check each field value against the source document.
+Only flag a value as wrong if something is egregiously wrong — meaning
+the extracted value cannot be found in or inferred from the source
+text with some generosity.
+
+null values are correct when the source does not mention that field — do not flag null as debatable or fabricated simply because the field is absent from the source.
+
+Return JSON as a list of objects, one per extracted row, each with:
+- id: the row_index of the extracted row
+- fields: array of objects with:
+  - name: field name
+  - verdict: 'correct', 'fabricated', or 'debatable'
+  - desc: brief explanation of why""")
+config.SET_SPOT_CHECK_SCHEMA({
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "id": {"type": "integer"},
+            "fields": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "verdict": {"type": "string"},
+                        "desc": {"type": "string"},
+                    },
+                    "required": ["name", "verdict", "desc"],
+                },
+            },
+        },
+        "required": ["id", "fields"],
+    },
+})
+config.SET_SPOT_CHECK_VERDICT_COLORS({"correct": "#e8f5e9", "fabricated": "#ffebee", "slightly_off": "#fff8e1"})
+```
 
 ### Spot Checking Visualization
 
-Use `spotcheck_visualize()` for an interactive visual method. 
+Use `spotcheck_visualize()` for an interactive visual method.
 
-Hotkeys: `LEFT/RIGHT` (or `A/D`) to navigate, `F` to copy extracted rows (JSON) to clipboard, `R` to reject and append to `reject.json`,  `P` to copy the current ID, `O` to reject and append to `reject_id.json` (configurable).
+Hotkeys: `LEFT/RIGHT` (or `A/D`) to navigate, `F` to copy extracted rows (JSON) to clipboard, `R` to reject and append to `reject.json`, `P` to copy the current ID, `O` to reject and append to `reject_id.json` (configurable).
 
 Customize hotkeys via `txt2dataset.config` (e.g. `from txt2dataset import config; config.SET_REJECT_KEY("X")`) before calling `spotcheck_visualize()`. Settings persist in `~/.txt2dataset/config.json` (override with `TXT2DATASET_CONFIG_PATH`).
 
@@ -121,9 +172,8 @@ config.SET_REJECT_FILE("my_rejects.json")
 ```
 
 ```python
-
-builder.spotcheck_visualize(prompt=prompt, schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
-               results=results, sample_size = 10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
+builder.spotcheck_visualize(schema=DividendExtraction, model="gemini-2.5-flash", entries=entries,
+               results=results, sample_size=10, rpm=4_000, tpm=4_000_000, rpm_threshold=0.75, tpm_threshold=0.75)
 ```
 ![spot check visualization](spotcheck_visualization.png)
 
