@@ -119,13 +119,6 @@ def _table(headers, rows, row_styles=None):
     return out
 
 
-def _item_is_fully_correct(item):
-    fields = item.get("fields") or []
-    if not fields:
-        return True
-    return all(f.get("verdict") == "correct" for f in fields)
-
-
 def _item_verdict_counts(item):
     counts = Counter()
     for f in item.get("fields") or []:
@@ -164,9 +157,14 @@ def _render_verdict(item):
         return '<h3>Spot Check</h3><p>No field verdicts.</p>'
 
     verdict_colors = config.CONFIG.get_spot_check_verdict_colors()
+    other_fields = [f for f in fields if f.get("verdict") != "correct"]
+
+    if not other_fields:
+        return f'<h3>Spot Check</h3><p>All {len(fields)} fields correct.</p>'
+
     rows = []
     row_styles = []
-    for field_data in fields:
+    for field_data in other_fields:
         verdict = field_data.get("verdict", "")
         rows.append([
             f'<b>{html.escape(field_data.get("name", ""))}</b>',
@@ -181,7 +179,7 @@ def _render_verdict(item):
 def _render_summary(items):
     """Render summary: fully correct files vs total, plus counts of each non-correct verdict across all fields."""
     total = len(items)
-    fully_correct = sum(1 for x in items if _item_is_fully_correct(x))
+    fully_correct = sum(1 for x in items if not _item_verdict_counts(x))
     pct = (fully_correct / total * 100) if total else 0
 
     # Aggregate non-correct verdict counts across all files and fields
@@ -210,8 +208,24 @@ def _render_page(items, index, version):
     prev_idx = (index - 1) % total
     next_idx = (index + 1) % total
 
+    counts = _item_verdict_counts(item)
+    if counts.get("fabricated"):
+        item_label, item_color = "Fabricated", "#c62828"
+    elif counts.get("debatable"):
+        item_label, item_color = "Debatable", "#f57f17"
+    else:
+        item_label, item_color = "Correct", "#2e7d32"
+    item_header = (
+        f'<div class="item-header">'
+        f'Entry {index + 1}/{total} &nbsp;·&nbsp; '
+        f'ID: {html.escape(str(item["id"]))} &nbsp;·&nbsp; '
+        f'<span style="color:{item_color};font-weight:700;">{item_label}</span>'
+        f'</div>'
+    )
+
     sections = [
         _render_summary(items),
+        item_header,
         _render_verdict(item),
         _render_extracted_rows(item.get("extracted_rows", [])),
         _render_context(item.get("context", "")),
@@ -258,6 +272,12 @@ def _render_page(items, index, version):
     .summary-pct {{ color: #555; margin-left: auto; }}
     .summary-errors {{ font-size: 13px; font-weight: 400; color: #555; }}
     .summary-verdict {{ margin-right: 4px; }}
+    .item-header {{
+        font-size: 14px;
+        font-weight: 600;
+        margin-bottom: 8px;
+        color: #555;
+    }}
     table {{
         width: 100%;
         border-collapse: collapse;
@@ -505,15 +525,16 @@ def visualize(spotcheck_results, port=8000):
     _version += 1
     current_version = _version
 
-    # Sort: fully incorrect files first, then partial, then fully correct
+    # Sort: fabricated first, then debatable-only, then correct
+    # Within each bin: most issues first (fabricated count, then debatable count)
     def _sort_key(item):
-        if _item_is_fully_correct(item):
-            return 2
         counts = _item_verdict_counts(item)
-        return 0 if counts else 1
+        n_fabricated = counts.get("fabricated", 0)
+        n_debatable = counts.get("debatable", 0)
+        bin_key = 0 if n_fabricated else (1 if n_debatable else 2)
+        return (bin_key, -n_fabricated, -n_debatable)
 
     items = sorted(spotcheck_results, key=_sort_key)
-    print(items)
 
     class Handler(BaseHTTPRequestHandler):
         def do_GET(self):
